@@ -1,11 +1,10 @@
 import { View, Text, StyleSheet } from 'react-native';
 import designSystem from '../../context/design_system.json';
 
-export default function HomeScreen() {
+export default function ProfileScreen() {
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Mitigation Focus</Text>
-      <Text style={styles.body}>Home view referencing the Stitch design.</Text>
+      <Text style={styles.title}>Profile View</Text>
     </View>
   );
 }
@@ -22,11 +21,5 @@ const styles = StyleSheet.create({
     fontSize: designSystem.typography.scale.h1.fontSize,
     fontWeight: designSystem.typography.scale.h1.fontWeight as any,
     color: designSystem.colors.text.dark.primary,
-    marginBottom: designSystem.spacing.md,
-  },
-  body: {
-    fontFamily: designSystem.typography.scale.bodyLarge.fontFamily,
-    fontSize: designSystem.typography.scale.bodyLarge.fontSize,
-    color: designSystem.colors.text.dark.secondary,
   }
 });
