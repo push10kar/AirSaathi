@@ -92,12 +92,21 @@ const ScaleFeedback = ({ children, onPress, style }: any) => {
   const timing = ds.interactions?.transitions?.duration || 150;
 
   const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }]
+    transform: [{ scale: scale.value }],
   }));
 
-  const handlePressIn = () => { scale.value = withTiming(targetScale, { duration: timing, easing: Easing.out(Easing.quad) }); };
-  const handlePressOut = () => { scale.value = withTiming(1, { duration: timing, easing: Easing.out(Easing.quad) }); };
-
+  const handlePressIn = () => {
+    scale.value = withTiming(targetScale, {
+      duration: timing,
+      easing: Easing.out(Easing.quad),
+    });
+  };
+  const handlePressOut = () => {
+    scale.value = withTiming(1, {
+      duration: timing,
+      easing: Easing.out(Easing.quad),
+    });
+  };
   const handlePress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (onPress) onPress();
@@ -364,7 +373,7 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
 
-  chipsContainer: { marginBottom: 32 },
+  chipsContainer: { marginBottom: 32, marginHorizontal: -16 },
   chip: {
     borderRadius: 32,
     shadowColor: "#000",
