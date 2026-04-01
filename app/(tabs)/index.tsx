@@ -1,83 +1,120 @@
-import React from 'react';
-import { Text, StyleSheet, View } from 'react-native';
+import React, { useState } from 'react';
+import { Text, StyleSheet, View, Pressable } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import designSystem from '../../context/design_system.json';
 import ScreenWrapper from '../../components/ScreenWrapper';
 import { useTheme } from '../../context/ThemeContext';
 import AQIRing from '../../components/AQIRing';
 import StatCard from '../../components/StatCard';
-import StrategyCard from '../../components/StrategyCard';
+import ActionCard from '../../components/ActionCard';
+import DailyProgressBar from '../../components/DailyProgressBar';
 import DailyTipCard from '../../components/DailyTipCard';
 
-// ─── Mock Data ─────────────────────────────────────────────────────
+// ─── Mock Data ──────────────────────────────────────────────────────────────
+
 const AQI_DATA = {
   value: 42,
   location: 'San Francisco, CA',
-  description: 'Air quality is good today. A great day for a walk.',
-  pm25: '12.4',
-  pm25Unit: 'μg/m³',
+  message: 'Air quality is good today — a great day to get outside.',
+  temperature: '24',
+  temperatureUnit: '°C',
   humidity: '48%',
   humidityUnit: 'Comfortable',
 };
 
-const STRATEGIES = [
+const ACTIONS = [
   {
-    icon: 'shield-checkmark-outline' as const,
-    title: 'Air Purification',
-    description: 'Run your HEPA filter on high for the next 2 hours for optimal indoor air.',
+    id: '1',
+    icon: 'leaf-outline' as const,
+    title: 'Keep windows open',
+    subtitle: 'Fresh air circulation is safe at AQI 42',
   },
   {
-    icon: 'car-outline' as const,
-    title: 'Travel Strategy',
-    description: 'Use a recirculating air setting if driving today to minimize traffic exhaust exposure.',
+    id: '2',
+    icon: 'walk-outline' as const,
+    title: 'Walk instead of drive',
+    subtitle: 'Low AQI makes it ideal for outdoor movement',
   },
   {
+    id: '3',
+    icon: 'water-outline' as const,
+    title: 'Stay well hydrated',
+    subtitle: 'Helps your body filter airborne particles',
+  },
+  {
+    id: '4',
     icon: 'fitness-outline' as const,
-    title: 'Physical Activity',
-    description: 'Move your workout indoors this evening to avoid localized PM2.5 peaks.',
+    title: 'Check AQI before your jog',
+    subtitle: 'Evening air can vary — a quick check first',
   },
 ];
 
-const DAILY_TIP = {
-  title: 'Did you know?',
-  body: 'Cooking with high heat can temporarily raise indoor PM2.5 levels by 10x. Always use a range hood or open a window during active cooking.',
+const INSIGHT = {
+  title: 'Good air day ahead',
+  body: 'AQI is low today, but avoid burning waste or candles indoors — even on clean days, indoor PM2.5 can spike quickly.',
 };
 
-// ─── HomeScreen ────────────────────────────────────────────────────
+// ─── HomeScreen ─────────────────────────────────────────────────────────────
+
 export default function HomeScreen() {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
 
+  const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
+
+  const toggleAction = (id: string) => {
+    setCompletedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  // ── Theme tokens ────────────────────────────────────────────────────────
   const textPrimary = isDark
     ? designSystem.designSystem.colors.primary.mint
     : designSystem.designSystem.colors.primary.lightText;
-  const textSecondary = isDark ? '#94A3B8' : '#475569';
-  const sectionTitle = isDark ? '#F1F5F9' : designSystem.designSystem.colors.primary.lightText;
-  const accentColor = isDark
+  const textSecondary = isDark ? '#94A3B8' : '#64748B';
+  const sectionTitleColor = isDark
+    ? '#F1F5F9'
+    : designSystem.designSystem.colors.primary.lightText;
+  const dividerColor = isDark ? 'rgba(148,163,184,0.12)' : 'rgba(0,0,0,0.07)';
+  const learnBg = isDark ? 'rgba(52, 211, 153, 0.08)' : '#F0FDF4';
+  const learnBorder = isDark ? 'rgba(52, 211, 153, 0.18)' : '#BBF7D0';
+  const learnTextColor = isDark
     ? designSystem.designSystem.colors.primary.mint
     : '#065F46';
 
   return (
     <ScreenWrapper>
-      {/* ── AQI Ring Section ──────────────────────────────── */}
+
+      {/* ─────────────────────────────────────────────────────────────────
+          SECTION 1 — AQI OVERVIEW
+      ───────────────────────────────────────────────────────────────── */}
       <AQIRing value={AQI_DATA.value} />
 
-      {/* ── Location ──────────────────────────────────────── */}
       <View style={styles.locationSection}>
-        <Text style={[styles.locationText, { color: textPrimary }]}>
-          {AQI_DATA.location}
-        </Text>
-        <Text style={[styles.descriptionText, { color: textSecondary }]}>
-          {AQI_DATA.description}
+        <View style={styles.locationRow}>
+          <Ionicons name="location-outline" size={13} color={textSecondary} />
+          <Text style={[styles.locationText, { color: textSecondary }]}>
+            {AQI_DATA.location}
+          </Text>
+        </View>
+        <Text style={[styles.messageText, { color: textPrimary }]}>
+          {AQI_DATA.message}
         </Text>
       </View>
 
-      {/* ── Stat Cards ────────────────────────────────────── */}
       <View style={styles.statRow}>
         <StatCard
-          icon="analytics-outline"
-          label="PM2.5"
-          value={AQI_DATA.pm25}
-          unit={AQI_DATA.pm25Unit}
+          icon="thermometer-outline"
+          label="Temperature"
+          value={AQI_DATA.temperature}
+          unit={AQI_DATA.temperatureUnit}
         />
         <StatCard
           icon="water-outline"
@@ -87,89 +124,155 @@ export default function HomeScreen() {
         />
       </View>
 
-      {/* ── Personal Protection Section ───────────────────── */}
+      {/* ─────────────────────────────────────────────────────────────────
+          SECTION 2 — TODAY'S ACTIONS
+      ───────────────────────────────────────────────────────────────── */}
+      <View style={[styles.divider, { backgroundColor: dividerColor }]} />
+
       <View style={styles.sectionHeader}>
-        <Text style={[styles.sectionTitle, { color: sectionTitle }]}>
-          Personal Protection
+        <Text style={[styles.sectionTitle, { color: sectionTitleColor }]}>
+          Today's Actions
         </Text>
-        <View style={styles.exposureBadge}>
-          <View style={[styles.exposureDot, { backgroundColor: accentColor }]} />
-          <Text style={[styles.exposureText, { color: accentColor }]}>
-            CURRENT EXPOSURE: LOW
-          </Text>
-        </View>
+        <Text style={[styles.sectionSubtitle, { color: textSecondary }]}>
+          Simple steps to protect your health
+        </Text>
       </View>
 
-      {/* ── Strategy Cards ────────────────────────────────── */}
-      <View style={styles.strategiesContainer}>
-        {STRATEGIES.map((strategy, index) => (
-          <StrategyCard
-            key={index}
-            icon={strategy.icon}
-            title={strategy.title}
-            description={strategy.description}
-            onPress={() => {}}
+      <View style={styles.actionsContainer}>
+        {ACTIONS.map(action => (
+          <ActionCard
+            key={action.id}
+            icon={action.icon}
+            title={action.title}
+            subtitle={action.subtitle}
+            completed={completedIds.has(action.id)}
+            onToggle={() => toggleAction(action.id)}
           />
         ))}
       </View>
 
-      {/* ── Daily Tip ─────────────────────────────────────── */}
-      <DailyTipCard title={DAILY_TIP.title} body={DAILY_TIP.body} />
+      {/* ─────────────────────────────────────────────────────────────────
+          SECTION 3 — PROGRESS
+      ───────────────────────────────────────────────────────────────── */}
+      <DailyProgressBar
+        completed={completedIds.size}
+        total={ACTIONS.length}
+      />
+
+      {/* ─────────────────────────────────────────────────────────────────
+          SECTION 4 — INSIGHT CARD
+      ───────────────────────────────────────────────────────────────── */}
+      <View style={styles.insightSection}>
+        <DailyTipCard title={INSIGHT.title} body={INSIGHT.body} />
+      </View>
+
+      {/* ─────────────────────────────────────────────────────────────────
+          SECTION 5 — LEARN WHY LINK
+      ───────────────────────────────────────────────────────────────── */}
+      <Pressable
+        style={({ pressed }) => [
+          styles.learnRow,
+          {
+            backgroundColor: learnBg,
+            borderColor: learnBorder,
+            opacity: pressed ? 0.7 : 1,
+          },
+        ]}
+      >
+        <Ionicons name="bulb-outline" size={16} color={learnTextColor} />
+        <Text style={[styles.learnText, { color: learnTextColor }]}>
+          Learn why air quality matters today
+        </Text>
+        <Ionicons name="arrow-forward-outline" size={14} color={learnTextColor} />
+      </Pressable>
+
     </ScreenWrapper>
   );
 }
 
+// ─── Styles ─────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
+  // ── Section 1 ──────────────────────────────────────────────────────────
   locationSection: {
     alignItems: 'center',
     gap: 6,
-    marginTop: 16,
+    marginTop: 10,
     marginBottom: 20,
   },
-  locationText: {
-    fontFamily: designSystem.designSystem.typography.fonts.headline,
-    fontSize: 20,
-    fontWeight: '700',
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
-  descriptionText: {
+  locationText: {
     fontFamily: designSystem.designSystem.typography.fonts.body,
-    fontSize: 14,
-    fontWeight: '400',
+    fontSize: 13,
+    fontWeight: '500',
+    letterSpacing: 0.2,
+  },
+  messageText: {
+    fontFamily: designSystem.designSystem.typography.fonts.headline,
+    fontSize: 16,
+    fontWeight: '600',
     textAlign: 'center',
-    lineHeight: 20,
+    lineHeight: 22,
+    paddingHorizontal: 8,
   },
   statRow: {
     flexDirection: 'row',
     gap: 12,
     marginBottom: 24,
   },
+
+  // ── Divider ────────────────────────────────────────────────────────────
+  divider: {
+    height: 1,
+    marginBottom: 24,
+    borderRadius: 1,
+  },
+
+  // ── Section 2 ──────────────────────────────────────────────────────────
   sectionHeader: {
-    gap: 6,
-    marginBottom: 16,
+    gap: 4,
+    marginBottom: 14,
   },
   sectionTitle: {
     fontFamily: designSystem.designSystem.typography.fonts.headline,
     fontSize: 20,
     fontWeight: '700',
   },
-  exposureBadge: {
+  sectionSubtitle: {
+    fontFamily: designSystem.designSystem.typography.fonts.body,
+    fontSize: 13,
+    fontWeight: '400',
+  },
+  actionsContainer: {
+    gap: 10,
+    marginBottom: 20,
+  },
+
+  // ── Section 4 ──────────────────────────────────────────────────────────
+  insightSection: {
+    marginTop: 16,
+    marginBottom: 14,
+  },
+
+  // ── Section 5 ──────────────────────────────────────────────────────────
+  learnRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginBottom: 8,
   },
-  exposureDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  exposureText: {
+  learnText: {
+    flex: 1,
     fontFamily: designSystem.designSystem.typography.fonts.body,
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1,
-  },
-  strategiesContainer: {
-    gap: 12,
-    marginBottom: 24,
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

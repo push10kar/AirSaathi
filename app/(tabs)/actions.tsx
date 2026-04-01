@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -12,13 +12,13 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
-  withSpring,
   Easing,
 } from 'react-native-reanimated';
 import designSystem from '../../context/design_system.json';
 import ScreenWrapper from '../../components/ScreenWrapper';
 import { useTheme } from '../../context/ThemeContext';
 import HabitTracker from '../../components/HabitTracker';
+import AnimatedCheckbox from '../../components/AnimatedCheckbox';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Task = {
@@ -138,47 +138,7 @@ const DAILY_ROUTINES: Task[] = [
   },
 ];
 
-// ─── Checkbox ─────────────────────────────────────────────────────────────────
-type CheckboxProps = {
-  checked: boolean;
-  onPress: () => void;
-  activeColor: string;
-  borderColor: string;
-};
-
-function Checkbox({ checked, onPress, activeColor, borderColor }: CheckboxProps) {
-  const scale = useSharedValue(1);
-
-  const animStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
-
-  const handlePress = () => {
-    scale.value = withSpring(0.85, { damping: 12, stiffness: 300 }, () => {
-      scale.value = withSpring(1, { damping: 12, stiffness: 300 });
-    });
-    onPress();
-  };
-
-  return (
-    <Pressable onPress={handlePress} hitSlop={8}>
-      <Animated.View
-        style={[
-          styles.checkbox,
-          {
-            borderColor: checked ? activeColor : borderColor,
-            backgroundColor: checked ? activeColor : 'transparent',
-          },
-          animStyle,
-        ]}
-      >
-        {checked && (
-          <Ionicons name="checkmark" size={14} color="#fff" />
-        )}
-      </Animated.View>
-    </Pressable>
-  );
-}
+// ─── Checkbox (uses shared AnimatedCheckbox) ─────────────────────────────────
 
 // ─── TaskCard ─────────────────────────────────────────────────────────────────
 type TaskCardProps = {
@@ -192,37 +152,45 @@ function TaskCard({ task, isDark, colors }: TaskCardProps) {
   const scale = useSharedValue(1);
   const opacity = useSharedValue(1);
 
-  const timingCfg = { duration: 200, easing: Easing.inOut(Easing.ease) };
-
-  const handlePressIn = () => {
-    scale.value = withTiming(0.97, timingCfg);
-  };
-  const handlePressOut = () => {
-    scale.value = withTiming(1, timingCfg);
-  };
-
-  const handleToggle = useCallback(() => {
-    const next = !checked;
-    opacity.value = withTiming(next ? 0.6 : 1, { duration: 200 });
-    setChecked(next);
+  // Fade only the content — keeps card shell + shadow at full opacity (no rect artifact)
+  useEffect(() => {
+    opacity.value = withTiming(checked ? 0.52 : 1, {
+      duration: checked ? 350 : 250,
+      easing: Easing.out(Easing.cubic),
+    });
   }, [checked]);
 
-  const cardAnimStyle = useAnimatedStyle(() => ({
+  const pressTimingCfg = { duration: 120, easing: Easing.out(Easing.cubic) };
+  const handlePressIn = () => { scale.value = withTiming(0.97, pressTimingCfg); };
+  const handlePressOut = () => { scale.value = withTiming(1, pressTimingCfg); };
+  const handleToggle = useCallback(() => { setChecked(prev => !prev); }, []);
+
+  // Scale lives on the outer wrapper (press feedback, no opacity — avoids shadow rect)
+  const scaleStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
+  }));
+
+  // Opacity lives on the inner content only (fade on complete)
+  const contentOpacityStyle = useAnimatedStyle(() => ({
     opacity: opacity.value,
   }));
 
+  // Inner content wrapped in its own Animated.View so opacity doesn't hit the shell
   const cardInnerContent = (
-    <View style={styles.cardInner}>
-      <Checkbox
+    <Animated.View style={[styles.cardInner, contentOpacityStyle]}>
+      <AnimatedCheckbox
         checked={checked}
         onPress={handleToggle}
         activeColor={colors.accent}
         borderColor={colors.checkboxBorder}
+        size={22}
       />
       <View style={styles.cardContent}>
         <Text
-          style={[styles.taskTitle, { color: colors.textPrimary }, checked && styles.taskTitleDone]}
+          style={[
+            styles.taskTitle,
+            { color: checked ? colors.textSecondary : colors.textPrimary },
+          ]}
           numberOfLines={1}
         >
           {task.title}
@@ -236,14 +204,14 @@ function TaskCard({ task, isDark, colors }: TaskCardProps) {
           {task.duration}
         </Text>
       </View>
-    </View>
+    </Animated.View>
   );
 
   return (
     <Pressable onPressIn={handlePressIn} onPressOut={handlePressOut} onPress={handleToggle}>
-      <Animated.View style={cardAnimStyle}>
+      {/* scaleStyle only — no opacity on the outer wrapper so shadow stays clean */}
+      <Animated.View style={scaleStyle}>
         {isDark ? (
-          // Dark: BlurView IS the container — content is inside, guarantees correct z-order
           <BlurView
             tint="dark"
             intensity={12}
@@ -252,7 +220,6 @@ function TaskCard({ task, isDark, colors }: TaskCardProps) {
             {cardInnerContent}
           </BlurView>
         ) : (
-          // Light: plain View, no overflow:hidden so elevation shadow is visible on Android
           <View
             style={[
               styles.cardLight,
@@ -267,6 +234,7 @@ function TaskCard({ task, isDark, colors }: TaskCardProps) {
     </Pressable>
   );
 }
+
 
 // ─── SectionHeader ────────────────────────────────────────────────────────────
 type SectionHeaderProps = {
@@ -510,8 +478,6 @@ const styles = StyleSheet.create({
     // Light: NO overflow:hidden so elevation shadow isn't clipped on Android
     backgroundColor: '#F8FAFC',
     borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.06)',
   },
   cardDark: {
     backgroundColor: 'rgba(15, 23, 42, 0.5)',
@@ -535,16 +501,6 @@ const styles = StyleSheet.create({
     gap: 12,
   },
 
-  // Checkbox
-  checkbox: {
-    width: 22,
-    height: 22,
-    borderRadius: 7,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
 
   // Card content
   cardContent: {
@@ -555,9 +511,6 @@ const styles = StyleSheet.create({
     fontFamily: designSystem.designSystem.typography.fonts.body,
     fontSize: 15,
     fontWeight: '600',
-  },
-  taskTitleDone: {
-    textDecorationLine: 'line-through',
   },
   taskSubtitle: {
     fontFamily: designSystem.designSystem.typography.fonts.body,
