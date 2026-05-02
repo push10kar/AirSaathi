@@ -9,7 +9,7 @@ import { LocationProvider } from './src/context/LocationContext';
 import AuthModal from './src/components/AuthModal';
 
 import DashboardScreen from './src/screens/DashboardScreen';
-import UsageScreen from './src/screens/UsageScreen';
+import ActionScreen from './src/screens/ActionScreen';
 import CommunityScreen from './src/screens/CommunityScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import BottomNavBar, { TABS } from './src/components/BottomNavBar';
@@ -106,7 +106,7 @@ function AppContent() {
           
           {/* 4. Action */}
           <View style={{ width: SCREEN_WIDTH, flex: 1 }}>
-            <UsageScreen />
+            <ActionScreen />
           </View>
           
           {/* 5. Alerts */}

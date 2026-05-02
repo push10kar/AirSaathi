@@ -74,6 +74,65 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const requestOtp = async (phone) => {
+    try {
+      const response = await fetch(`${API_URL}/auth/request-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone }),
+      });
+      
+      const data = await response.json();
+      return { success: data.status === 'success', message: data.message, code: data.code };
+    } catch (e) {
+      return { success: false, message: 'Connection error' };
+    }
+  };
+
+  const verifyOtp = async (phone, code) => {
+    try {
+      const response = await fetch(`${API_URL}/auth/verify-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, code }),
+      });
+      
+      const data = await response.json();
+      if (data.status === 'success') {
+        await saveAuthData(data.token, data.data.user);
+        return { success: true, isNewUser: data.isNewUser };
+      } else {
+        return { success: false, message: data.message };
+      }
+    } catch (e) {
+      return { success: false, message: 'Connection error' };
+    }
+  };
+
+  const updateProfile = async (profileData) => {
+    try {
+      const response = await fetch(`${API_URL}/auth/update-me`, {
+        method: 'PATCH',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(profileData),
+      });
+      
+      const data = await response.json();
+      if (data.status === 'success') {
+        setUser(data.data.user);
+        await AsyncStorage.setItem('user_data', JSON.stringify(data.data.user));
+        return { success: true };
+      } else {
+        return { success: false, message: data.message };
+      }
+    } catch (e) {
+      return { success: false, message: 'Connection error' };
+    }
+  };
+
   const saveAuthData = async (newToken, userData) => {
     setToken(newToken);
     setUser(userData);
@@ -122,6 +181,9 @@ export const AuthProvider = ({ children }) => {
       isLoading, 
       login, 
       signup, 
+      requestOtp,
+      verifyOtp,
+      updateProfile,
       logout,
       requireAuth,
       isAuthModalVisible,

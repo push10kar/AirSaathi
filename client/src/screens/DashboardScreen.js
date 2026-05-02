@@ -9,12 +9,16 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { useAppTheme } from '../context/ThemeContext';
 import { useLocation } from '../context/LocationContext';
 import CircularProgress from '../components/CircularProgress';
 import ApplianceCard from '../components/ApplianceCard';
 import TopAppBar from '../components/TopAppBar';
+import AQIHero from '../components/AQIHero';
+import DailyActions from '../components/DailyActions';
+import InsightCard from '../components/InsightCard';
+import CommunityPreview from '../components/CommunityPreview';
 
 // API Configuration
 // Use '10.0.2.2' for Android Emulator, or your computer's local IP (e.g. 192.168.1.5) for physical devices
@@ -32,6 +36,17 @@ export default function DashboardScreen({ onMenuPress }) {
   const [hvacActive, setHvacActive] = useState(true);
   const [evActive, setEvActive] = useState(true);
   const [sprinklerActive, setSprinklerActive] = useState(false);
+
+  const [dailyActions, setDailyActions] = useState([
+    { id: 1, title: 'Wear mask outdoors', icon: 'masks', completed: false },
+    { id: 2, title: 'Avoid burning waste', icon: 'delete-forever', completed: false },
+    { id: 3, title: 'Use public transport', icon: 'directions-bus', completed: true },
+    { id: 4, title: 'Check air filter', icon: 'filter-alt', completed: false },
+  ]);
+
+  const toggleAction = (id, newState) => {
+    setDailyActions(prev => prev.map(a => a.id === id ? { ...a, completed: newState } : a));
+  };
 
   const fetchAQI = async () => {
     try {
@@ -69,37 +84,47 @@ export default function DashboardScreen({ onMenuPress }) {
         }
       >
         
-        {/* Centerpiece Dial */}
-        <View style={styles.centerpieceContainer}>
-          <CircularProgress aqi={aqiData.aqi} />
-        </View>
+        {/* AQI Hero Section */}
+        <AQIHero 
+          aqi={aqiData.aqi} 
+          nearbyArea="Pimpri-Chinchwad" 
+          theme={theme} 
+        />
 
-        {/* Stats Metadata */}
+        {/* Stats Metadata (Left & Right) */}
         <View style={styles.statsContainer}>
           <View style={styles.statBoxLeft}>
-            <Text style={styles.statLabel}>ENERGY EFFICIENCY</Text>
+            <Text style={styles.statLabel}>TEMPERATURE</Text>
             <View style={styles.statValueRow}>
-              <Text style={styles.statValuePrimary}>88%</Text>
-              <MaterialIcons name="trending-up" size={16} color={theme.colors.accent.primary} style={{ marginLeft: 4 }} />
+              <Text style={styles.statValuePrimary}>28°C</Text>
+              <Feather name="thermometer" size={16} color={theme.colors.accent.primary} style={{ marginLeft: 4, marginTop: 4 }} />
             </View>
           </View>
           <View style={styles.statBoxRight}>
-            <Text style={styles.statLabelRight}>RESOURCE HEALTH</Text>
+            <Text style={styles.statLabelRight}>HUMIDITY</Text>
             <View style={styles.statValueRowRight}>
-              <Text style={styles.statValueNormal}>Optimal</Text>
+              <Text style={styles.statValueNormal}>45%</Text>
+              <Feather name="droplet" size={16} color={theme.colors.support.teal} style={{ marginLeft: 4, marginTop: 4 }} />
             </View>
           </View>
         </View>
 
-        {/* Active Appliances */}
+        {/* Today's Actions & Progress */}
+        <DailyActions 
+          actions={dailyActions} 
+          onActionToggle={toggleAction} 
+          theme={theme} 
+        />
+
+        {/* Insight Card */}
+        <InsightCard theme={theme} />
+
+        {/* Quick Actions (Existing Appliances) */}
         <View style={styles.sectionHeader}>
           <View>
-            <Text style={styles.sectionTitle}>Active Appliances</Text>
-            <Text style={styles.sectionSubtitle}>3 systems drawing power</Text>
+            <Text style={styles.sectionTitle}>Quick Actions</Text>
+            <Text style={styles.sectionSubtitle}>Control your environment</Text>
           </View>
-          <TouchableOpacity>
-            <Text style={styles.viewAllText}>View All</Text>
-          </TouchableOpacity>
         </View>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScroll} contentContainerStyle={styles.horizontalScrollContent}>
@@ -107,7 +132,7 @@ export default function DashboardScreen({ onMenuPress }) {
             title="HVAC"
             draw="1.2 kW"
             drawPercentage={66}
-            icon={<MaterialIcons name="ac-unit" size={24} color={theme.colors.accent.primary} />}
+            icon={<Feather name="wind" size={24} color={theme.colors.accent.primary} />}
             activeColor={theme.colors.accent.primary}
             activeContainerColor="rgba(0, 209, 102, 0.2)"
             isActive={hvacActive}
@@ -117,7 +142,7 @@ export default function DashboardScreen({ onMenuPress }) {
             title="EV Charger"
             draw="7.4 kW"
             drawPercentage={85}
-            icon={<MaterialIcons name="ev-station" size={24} color={theme.colors.accent.primary} />}
+            icon={<Feather name="zap" size={24} color={theme.colors.accent.primary} />}
             activeColor={theme.colors.accent.primary}
             activeContainerColor="rgba(0, 209, 102, 0.2)"
             isActive={evActive}
@@ -127,7 +152,7 @@ export default function DashboardScreen({ onMenuPress }) {
             title="Smart Sprinkler"
             draw="0 L/m"
             drawPercentage={0}
-            icon={<MaterialIcons name="waves" size={24} color={theme.colors.support.teal} />}
+            icon={<Feather name="droplet" size={24} color={theme.colors.support.teal} />}
             activeColor={theme.colors.support.teal}
             activeContainerColor="rgba(0, 89, 187, 0.1)"
             isActive={sprinklerActive}
@@ -135,35 +160,18 @@ export default function DashboardScreen({ onMenuPress }) {
           />
         </ScrollView>
 
-        {/* Bento Grid Insights */}
+        {/* Smart Alert (Modified existing Bento Card) */}
         <View style={styles.bentoGrid}>
-          {/* Peak Saving Window */}
-          <View style={styles.bentoCardLarge}>
-            <Text style={styles.bentoTitle}>Live in {aqiData.city}</Text>
-            <Text style={styles.bentoDescription}>
-              The current air quality is {aqiData.aqi > 100 ? 'Poor' : 'Good'}. {aqiData.aqi > 100 ? 'Avoid heavy outdoor exercise.' : 'Perfect time for a morning walk!'}
-            </Text>
-            <TouchableOpacity style={styles.scheduleButton}>
-              <Text style={styles.scheduleButtonText}>Detailed Report</Text>
-            </TouchableOpacity>
-            
-            {/* Background Icon Watermark */}
-            <MaterialIcons 
-              name="bolt" 
-              size={120} 
-              color={theme.colors.accent.primary} 
-              style={styles.watermarkIcon} 
-            />
-          </View>
-
-          {/* Water Leak Alert */}
           <View style={styles.bentoCardSmall}>
-            <MaterialIcons name="water-drop" size={32} color={theme.colors.background.primary} />
-            <Text style={styles.bentoSmallTitle}>Water Leak Alert</Text>
-            <Text style={styles.bentoSmallDescription}>No abnormal flow detected in the main line today.</Text>
-            <Text style={styles.bentoSmallStatus}>Secure</Text>
+            <Feather name="bell" size={32} color={theme.colors.background.primary} />
+            <Text style={styles.bentoSmallTitle}>Smart Alert</Text>
+            <Text style={styles.bentoSmallDescription}>AQI is predicted to rise this evening. Consider closing windows by 6 PM.</Text>
+            <Text style={styles.bentoSmallStatus}>Active</Text>
           </View>
         </View>
+
+        {/* Community Highlight */}
+        <CommunityPreview theme={theme} />
 
         {/* Spacer for bottom nav */}
         <View style={styles.bottomSpacer} />
@@ -185,11 +193,13 @@ const getStyles = (theme) => StyleSheet.create({
   centerpieceContainer: {
     alignItems: 'center',
     marginTop: 16,
+    marginBottom: 24,
   },
   statsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 40,
+    marginTop: 16,
+    marginBottom: 32,
     width: '100%',
   },
   statBoxLeft: {
@@ -216,11 +226,11 @@ const getStyles = (theme) => StyleSheet.create({
   },
   statValueRow: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center',
   },
   statValueRowRight: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     justifyContent: 'flex-end',
   },
   statValuePrimary: {
@@ -267,48 +277,6 @@ const getStyles = (theme) => StyleSheet.create({
   },
   bentoGrid: {
     marginTop: 48,
-  },
-  bentoCardLarge: {
-    backgroundColor: theme.colors.background.elevated,
-    borderRadius: 24,
-    padding: 32,
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(187, 203, 185, 0.1)', // outline-variant with opacity
-    overflow: 'hidden',
-  },
-  bentoTitle: {
-    fontFamily: theme.fonts.headline.bold,
-    fontSize: 20,
-    color: theme.colors.text.primary,
-  },
-  bentoDescription: {
-    fontFamily: theme.fonts.body.regular,
-    fontSize: 14,
-    color: theme.colors.text.secondary,
-    marginTop: 8,
-    maxWidth: '80%',
-    lineHeight: 20,
-  },
-  scheduleButton: {
-    backgroundColor: theme.colors.accent.primary,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-    alignSelf: 'flex-start',
-    marginTop: 24,
-    zIndex: 10,
-  },
-  scheduleButtonText: {
-    fontFamily: theme.fonts.body.semiBold,
-    fontSize: 14,
-    color: theme.colors.background.primary,
-  },
-  watermarkIcon: {
-    position: 'absolute',
-    bottom: -20,
-    right: -20,
-    opacity: 0.1,
   },
   bentoCardSmall: {
     backgroundColor: theme.colors.support.teal,
