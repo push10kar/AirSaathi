@@ -1,13 +1,22 @@
 import React, { useState } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import { MaterialIcons, Feather } from '@expo/vector-icons';
 import { useAppTheme } from '../context/ThemeContext';
 import { useLocation } from '../context/LocationContext';
+import { useAuth } from '../context/AuthContext';
 import LocationSearchModal from './LocationSearchModal';
+import { Image } from 'react-native';
 
-export default function TopAppBar({ greeting = "GOOD MORNING!", onMenuPress, streakCount = 7 }) {
+export default function TopAppBar({ 
+  greeting = "GOOD MORNING!", 
+  onMenuPress, 
+  onProfilePress,
+  onStreakPress,
+  streakCount = 7 
+}) {
   const { theme, isDarkMode } = useAppTheme();
   const { location } = useLocation();
+  const { user, requireAuth } = useAuth();
   const [searchVisible, setSearchVisible] = useState(false);
   const styles = getStyles(theme, isDarkMode);
 
@@ -33,15 +42,35 @@ export default function TopAppBar({ greeting = "GOOD MORNING!", onMenuPress, str
       />
       <View style={styles.headerRight}>
         {/* Streak Counter */}
-        <View style={styles.streakContainer}>
+        <TouchableOpacity 
+          style={styles.streakContainer}
+          onPress={onStreakPress}
+          activeOpacity={0.7}
+        >
           <Text style={styles.streakIcon}>🔥</Text>
           <Text style={styles.streakCount}>{streakCount}</Text>
-        </View>
-        <TouchableOpacity style={styles.notificationButton}>
-          <MaterialIcons name="notifications" size={28} color={theme.colors.accent.primary} />
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>2</Text>
-          </View>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={styles.profileButton} 
+          activeOpacity={0.7}
+          onPress={() => {
+            if (!user) {
+              requireAuth(() => onProfilePress());
+            } else {
+              onProfilePress();
+            }
+          }}
+        >
+          {user ? (
+            <Image 
+              source={{ uri: user.avatar_url || 'https://i.pravatar.cc/150?u=' + user.id }} 
+              style={styles.avatarImage} 
+            />
+          ) : (
+            <View style={[styles.avatarPlaceholder, { backgroundColor: theme.colors.background.secondary }]}>
+              <Feather name="user" size={20} color={theme.colors.accent.primary} />
+            </View>
+          )}
         </TouchableOpacity>
       </View>
     </View>
@@ -107,27 +136,25 @@ const getStyles = (theme, isDarkMode) => StyleSheet.create({
     color: theme.colors.text.secondary,
     marginHorizontal: 2,
   },
-  notificationButton: {
-    padding: 4,
-    position: 'relative',
-  },
-  badge: {
-    position: 'absolute',
-    top: 2,
-    right: 2,
-    backgroundColor: theme.colors.support.error || '#E53935',
-    borderRadius: 10,
-    minWidth: 18,
-    height: 18,
-    alignItems: 'center',
+  profileButton: {
+    marginLeft: 8,
     justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: theme.colors.background.primary,
+    alignItems: 'center',
   },
-  badgeText: {
-    color: '#FFF',
-    fontSize: 10,
-    fontFamily: theme.fonts.body.bold,
-    lineHeight: 12,
-  }
+  avatarImage: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1.5,
+    borderColor: theme.colors.accent.primary,
+  },
+  avatarPlaceholder: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+  },
 });

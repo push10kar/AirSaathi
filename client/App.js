@@ -4,7 +4,7 @@ import { useFonts } from 'expo-font';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from './src/theme';
 import { ThemeProvider, useAppTheme } from './src/context/ThemeContext';
-import { AuthProvider } from './src/context/AuthContext';
+import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { LocationProvider } from './src/context/LocationContext';
 import AuthModal from './src/components/AuthModal';
 
@@ -15,6 +15,9 @@ import ProfileScreen from './src/screens/ProfileScreen';
 import BottomNavBar, { TABS } from './src/components/BottomNavBar';
 import FullScreenMenu from './src/components/FullScreenMenu';
 import TopAppBar from './src/components/TopAppBar';
+import LogoutModal from './src/components/LogoutModal';
+import ReportModal from './src/components/ReportModal';
+import LocationControlModal from './src/components/LocationControlModal';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -27,7 +30,7 @@ const PlaceholderScreen = ({ title }) => {
     <View style={styles.placeholderContainer}>
       <View style={styles.placeholderContent}>
         <Text style={styles.placeholderTitle}>{title}</Text>
-        <Text style={styles.placeholderText}>This section is under construction.</Text>
+        <Text style={styles.placeholderText}>This section is coming soon!</Text>
       </View>
     </View>
   );
@@ -48,11 +51,15 @@ function AppContent() {
 
   const [activeIndex, setActiveIndex] = useState(0);
   const [menuVisible, setMenuVisible] = useState(false);
+  const [logoutVisible, setLogoutVisible] = useState(false);
+  const [reportVisible, setReportVisible] = useState(false);
+  const [locationVisible, setLocationVisible] = useState(false);
+  const { user, logout, token } = useAuth();
   const scrollX = useRef(new Animated.Value(0)).current;
   const scrollViewRef = useRef(null);
 
   if (!fontsLoaded) {
-    return <View style={styles.loadingContainer} />;
+    return <View style={[styles.loadingContainer, { backgroundColor: theme.colors.background.primary }]} />;
   }
 
   const handleMenuPress = () => setMenuVisible(true);
@@ -62,9 +69,14 @@ function AppContent() {
     setActiveIndex(index);
   };
 
+  const handleLogout = () => {
+    setLogoutVisible(false);
+    logout();
+  };
+
   const handleScroll = Animated.event(
     [{ nativeEvent: { contentOffset: { x: scrollX } } }],
-    { useNativeDriver: false } // Required false for interpolation on non-transform properties if any
+    { useNativeDriver: false }
   );
 
   const handleMomentumScrollEnd = (event) => {
@@ -73,65 +85,76 @@ function AppContent() {
   };
 
   return (
-    <SafeAreaProvider>
-      <SafeAreaView style={styles.safeArea}>
-        
-        {/* Sticky Top App Bar */}
-        <TopAppBar onMenuPress={handleMenuPress} />
+    <SafeAreaView style={styles.safeArea}>
+      <TopAppBar 
+        onMenuPress={handleMenuPress} 
+        onProfilePress={() => handleTabPress(5)}
+        onStreakPress={() => handleTabPress(3)}
+      />
 
-        <Animated.ScrollView
-          ref={scrollViewRef}
-          horizontal
-          pagingEnabled
-          showsHorizontalScrollIndicator={false}
-          onScroll={handleScroll}
-          scrollEventThrottle={16}
-          onMomentumScrollEnd={handleMomentumScrollEnd}
-          style={styles.pagerContainer}
-        >
-          {/* 1. Home */}
-          <View style={{ width: SCREEN_WIDTH, flex: 1 }}>
-            <DashboardScreen />
-          </View>
-          
-          {/* 2. Learn */}
-          <View style={{ width: SCREEN_WIDTH, flex: 1 }}>
-            <PlaceholderScreen title="Learn" />
-          </View>
-          
-          {/* 3. Community */}
-          <View style={{ width: SCREEN_WIDTH, flex: 1 }}>
-            <CommunityScreen />
-          </View>
-          
-          {/* 4. Action */}
-          <View style={{ width: SCREEN_WIDTH, flex: 1 }}>
-            <ActionScreen />
-          </View>
-          
-          {/* 5. Alerts */}
-          <View style={{ width: SCREEN_WIDTH, flex: 1 }}>
-            <PlaceholderScreen title="Alerts" />
-          </View>
-          
-          {/* 6. Profile */}
-          <View style={{ width: SCREEN_WIDTH, flex: 1 }}>
-            <ProfileScreen />
-          </View>
-        </Animated.ScrollView>
+      <Animated.ScrollView
+        ref={scrollViewRef}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+        onMomentumScrollEnd={handleMomentumScrollEnd}
+        style={styles.pagerContainer}
+      >
+        <View style={{ width: SCREEN_WIDTH, flex: 1 }}>
+          <DashboardScreen />
+        </View>
+        <View style={{ width: SCREEN_WIDTH, flex: 1 }}>
+          <PlaceholderScreen title="Learn" />
+        </View>
+        <View style={{ width: SCREEN_WIDTH, flex: 1 }}>
+          <CommunityScreen />
+        </View>
+        <View style={{ width: SCREEN_WIDTH, flex: 1 }}>
+          <ActionScreen />
+        </View>
+        <View style={{ width: SCREEN_WIDTH, flex: 1 }}>
+          <PlaceholderScreen title="Alerts" />
+        </View>
+        <View style={{ width: SCREEN_WIDTH, flex: 1 }}>
+          <ProfileScreen onLogoutRequest={() => setLogoutVisible(true)} />
+        </View>
+      </Animated.ScrollView>
 
-        <BottomNavBar 
-          scrollX={scrollX}
-          activeIndex={activeIndex}
-          onTabPress={handleTabPress}
-        />
-        
-        <FullScreenMenu 
-          visible={menuVisible} 
-          onClose={() => setMenuVisible(false)} 
-        />
-      </SafeAreaView>
-    </SafeAreaProvider>
+      <BottomNavBar 
+        scrollX={scrollX}
+        activeIndex={activeIndex}
+        onTabPress={handleTabPress}
+      />
+      
+      <FullScreenMenu 
+        visible={menuVisible} 
+        onClose={() => setMenuVisible(false)}
+        onNavigate={handleTabPress}
+        onLogout={() => setLogoutVisible(true)}
+        onReport={() => setReportVisible(true)}
+        onLocation={() => setLocationVisible(true)}
+      />
+
+      <LogoutModal
+        visible={logoutVisible}
+        onCancel={() => setLogoutVisible(false)}
+        onConfirm={handleLogout}
+        theme={theme}
+      />
+
+      <ReportModal
+        visible={reportVisible}
+        onClose={() => setReportVisible(false)}
+        token={token}
+      />
+
+      <LocationControlModal
+        visible={locationVisible}
+        onClose={() => setLocationVisible(false)}
+      />
+    </SafeAreaView>
   );
 }
 
@@ -153,18 +176,17 @@ export default function App() {
 const getStyles = (theme) => StyleSheet.create({
   loadingContainer: {
     flex: 1,
-    backgroundColor: theme.colors?.background?.primary || theme.colors.background,
   },
   safeArea: {
     flex: 1,
-    backgroundColor: theme.colors?.background?.primary || theme.colors.background,
+    backgroundColor: theme.colors.background.primary,
   },
   pagerContainer: {
     flex: 1,
   },
   placeholderContainer: {
     flex: 1,
-    backgroundColor: theme.colors?.background?.primary || theme.colors.background,
+    backgroundColor: theme.colors.background.primary,
   },
   placeholderContent: {
     flex: 1,
@@ -175,12 +197,12 @@ const getStyles = (theme) => StyleSheet.create({
   placeholderTitle: {
     fontFamily: theme.fonts.headline.bold,
     fontSize: 28,
-    color: theme.colors?.text?.primary || theme.colors['on-surface'],
+    color: theme.colors.text.primary,
     marginBottom: 16,
   },
   placeholderText: {
     fontFamily: theme.fonts.body.regular,
     fontSize: 16,
-    color: theme.colors?.text?.secondary || theme.colors.outline,
+    color: theme.colors.text.secondary,
   }
 });

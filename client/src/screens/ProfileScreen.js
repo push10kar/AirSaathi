@@ -1,19 +1,42 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView } from 'react-native';
-import { MaterialIcons, Feather } from '@expo/vector-icons';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  Image, 
+  TouchableOpacity, 
+  ScrollView, 
+  Dimensions,
+  Platform
+} from 'react-native';
+import { MaterialIcons, Feather, Ionicons, FontAwesome5 } from '@expo/vector-icons';
 import { useAppTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import LogoutModal from '../components/LogoutModal';
 import EditProfileModal from '../components/EditProfileModal';
 
-export default function ProfileScreen() {
+const { width } = Dimensions.get('window');
+
+export default function ProfileScreen({ onLogoutRequest }) {
   const { theme, isDarkMode } = useAppTheme();
   const { user, logout, updateProfile, requireAuth } = useAuth();
   
-  const [isLogoutModalVisible, setIsLogoutModalVisible] = useState(false);
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
 
   const styles = getStyles(theme, isDarkMode);
+
+  // Mock data for the "Impact" and "Stats" sections
+  const mockStats = {
+    greenScore: 240,
+    currentStreak: 5,
+    bestStreak: 12,
+    actionsCompleted: 128,
+    co2Reduced: 12,
+    wasteAvoided: 6,
+    weeklyProgress: [true, true, false, true, true, true, false],
+    points: 240,
+    consistency: 72
+  };
 
   if (!user) {
     return (
@@ -37,15 +60,14 @@ export default function ProfileScreen() {
     );
   }
 
-  const handleLogout = () => {
-    setIsLogoutModalVisible(false);
-    logout();
-  };
+
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.header}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        
+        {/* 1. IDENTITY BLOCK */}
+        <View style={styles.identitySection}>
           <View style={styles.avatarContainer}>
             <Image 
               source={{ uri: user.avatar_url || 'https://i.pravatar.cc/150?u=' + user.id }} 
@@ -56,65 +78,190 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           </View>
           <Text style={styles.name}>{user.name}</Text>
-          <Text style={styles.email}>{user.email || user.phone || 'No contact info'}</Text>
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>{user.role.toUpperCase()}</Text>
+          <Text style={styles.city}>{user.city || 'Pune, India'}</Text>
+
+          <View style={styles.topStatsRow}>
+            <View style={styles.topStatItem}>
+              <Text style={[styles.topStatValue, { color: theme.colors.accent.primary }]}>{mockStats.greenScore}</Text>
+              <Text style={styles.topStatLabel}>Green Score</Text>
+            </View>
+            <View style={[styles.divider, { backgroundColor: theme.colors.background.elevated }]} />
+            <View style={styles.topStatItem}>
+              <View style={styles.streakLabelRow}>
+                <Text style={[styles.topStatValue, { color: '#FF9500' }]}>{mockStats.currentStreak}</Text>
+                <Feather name="zap" size={18} color="#FF9500" style={{ marginLeft: 4, marginTop: 4 }} />
+              </View>
+              <Text style={styles.topStatLabel}>Day Streak</Text>
+            </View>
           </View>
         </View>
 
+        {/* 2. IMPACT SUMMARY */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Account Settings</Text>
-          
-          <TouchableOpacity style={styles.menuItem} onPress={() => setIsEditModalVisible(true)}>
-            <View style={[styles.menuIconCircle, { backgroundColor: theme.colors.accent.primary + '15' }]}>
-              <Feather name="user" size={20} color={theme.colors.accent.primary} />
+          <Text style={styles.sectionHeader}>Your Impact</Text>
+          <View style={styles.impactGrid}>
+            <View style={[styles.impactCard, { backgroundColor: theme.colors.background.secondary }]}>
+              <View style={[styles.impactIcon, { backgroundColor: 'rgba(52, 199, 89, 0.1)' }]}>
+                <Feather name="check-circle" size={20} color="#34C759" />
+              </View>
+              <Text style={styles.impactValue}>{mockStats.actionsCompleted}</Text>
+              <Text style={styles.impactLabel}>Actions Done</Text>
             </View>
-            <Text style={styles.menuText}>Edit Profile</Text>
-            <MaterialIcons name="chevron-right" size={24} color={theme.colors.text.secondary} />
-          </TouchableOpacity>
+            
+            <View style={[styles.impactCard, { backgroundColor: theme.colors.background.secondary }]}>
+              <View style={[styles.impactIcon, { backgroundColor: 'rgba(0, 122, 255, 0.1)' }]}>
+                <Feather name="wind" size={20} color="#007AFF" />
+              </View>
+              <Text style={styles.impactValue}>{mockStats.co2Reduced} kg</Text>
+              <Text style={styles.impactLabel}>CO₂ Reduced</Text>
+            </View>
 
-          <TouchableOpacity style={styles.menuItem}>
-            <View style={[styles.menuIconCircle, { backgroundColor: '#34C759' + '15' }]}>
-              <Feather name="map-pin" size={20} color="#34C759" />
+            <View style={[styles.impactCard, { backgroundColor: theme.colors.background.secondary }]}>
+              <View style={[styles.impactIcon, { backgroundColor: 'rgba(255, 59, 48, 0.1)' }]}>
+                <Feather name="trash-2" size={20} color="#FF3B30" />
+              </View>
+              <Text style={styles.impactValue}>{mockStats.wasteAvoided}</Text>
+              <Text style={styles.impactLabel}>Waste Avoided</Text>
             </View>
-            <Text style={styles.menuText}>Location: {user.city || 'Not set'}</Text>
-            <MaterialIcons name="chevron-right" size={24} color={theme.colors.text.secondary} />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.menuItem}>
-            <View style={[styles.menuIconCircle, { backgroundColor: '#5856D6' + '15' }]}>
-              <Feather name="bell" size={20} color="#5856D6" />
-            </View>
-            <Text style={styles.menuText}>Notifications</Text>
-            <MaterialIcons name="chevron-right" size={24} color={theme.colors.text.secondary} />
-          </TouchableOpacity>
+          </View>
         </View>
 
+        {/* 3. PROGRESS & HABITS */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Preferences</Text>
-          <TouchableOpacity style={styles.menuItem}>
-            <View style={[styles.menuIconCircle, { backgroundColor: '#FF9500' + '15' }]}>
-              <Feather name="moon" size={20} color="#FF9500" />
+          <Text style={styles.sectionHeader}>Progress & Habits</Text>
+          <View style={[styles.card, { backgroundColor: theme.colors.background.secondary }]}>
+            <View style={styles.streakHeader}>
+              <View>
+                <Text style={styles.cardTitle}>Activity Streak</Text>
+                <Text style={styles.cardSubtitle}>Best: {mockStats.bestStreak} days</Text>
+              </View>
+              <View style={[styles.streakCountBadge, { backgroundColor: theme.colors.background.primary }]}>
+                <Text style={[styles.streakCountText, { color: theme.colors.text.primary }]}>{mockStats.currentStreak}</Text>
+                <Feather name="zap" size={20} color={theme.colors.accent.primary} />
+              </View>
             </View>
-            <Text style={styles.menuText}>Theme: {isDarkMode ? 'Dark' : 'Light'}</Text>
-            <MaterialIcons name="chevron-right" size={24} color={theme.colors.text.secondary} />
-          </TouchableOpacity>
+            
+            <View style={styles.weekGrid}>
+              {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, i) => (
+                <View key={i} style={styles.dayCol}>
+                  <Text style={styles.dayLabel}>{day}</Text>
+                  <View style={[
+                    styles.statusBox, 
+                    { 
+                      backgroundColor: mockStats.weeklyProgress[i] ? 'rgba(196, 255, 1, 0.15)' : 'rgba(255, 75, 75, 0.1)',
+                      borderColor: mockStats.weeklyProgress[i] ? theme.colors.accent.primary : 'rgba(255, 75, 75, 0.3)'
+                    }
+                  ]}>
+                    <Feather 
+                      name={mockStats.weeklyProgress[i] ? "check" : "x"} 
+                      size={14} 
+                      color={mockStats.weeklyProgress[i] ? theme.colors.accent.primary : "#FF4B4B"} 
+                    />
+                  </View>
+                </View>
+              ))}
+            </View>
+
+            <View style={styles.statsRow}>
+              <View style={styles.statBox}>
+                <Text style={styles.statBoxValue}>18</Text>
+                <Text style={styles.statBoxLabel}>Actions this week</Text>
+              </View>
+              <View style={styles.statBox}>
+                <Text style={styles.statBoxValue}>{mockStats.consistency}%</Text>
+                <Text style={styles.statBoxLabel}>Consistency</Text>
+              </View>
+            </View>
+          </View>
         </View>
 
-        <TouchableOpacity style={styles.logoutBtn} onPress={() => setIsLogoutModalVisible(true)}>
-          <Feather name="log-out" size={18} color={theme.colors.support.error} />
-          <Text style={styles.logoutText}>Log Out</Text>
-        </TouchableOpacity>
+        {/* 4. REWARDS & ACHIEVEMENTS */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionHeader}>Rewards & Badges</Text>
+            <View style={[styles.pointsBadge, { backgroundColor: theme.colors.accent.primary + '15' }]}>
+              <FontAwesome5 name="seedling" size={12} color={theme.colors.accent.primary} />
+              <Text style={[styles.pointsValue, { color: theme.colors.accent.primary }]}>{mockStats.points} pts</Text>
+            </View>
+          </View>
 
-        <Text style={styles.versionText}>AirSaathi v2.0.4 • Made with ❤️ for Clean Air</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScroll}>
+            <View style={[styles.rewardCard, { backgroundColor: theme.colors.background.secondary }]}>
+              <View style={styles.rewardIcon}>
+                <Ionicons name="gift-outline" size={32} color={theme.colors.accent.primary} />
+              </View>
+              <Text style={styles.rewardTitle}>Bamboo Bottle</Text>
+              <Text style={styles.rewardCost}>200 pts</Text>
+            </View>
+            
+            <View style={[styles.rewardCard, { backgroundColor: theme.colors.background.secondary }]}>
+              <View style={styles.rewardIcon}>
+                <Ionicons name="shirt-outline" size={32} color="#5856D6" />
+              </View>
+              <Text style={styles.rewardTitle}>Eco T-Shirt</Text>
+              <Text style={styles.rewardCost}>300 pts</Text>
+            </View>
+
+            <View style={[styles.badgeCircle, { backgroundColor: theme.colors.background.secondary }]}>
+              <MaterialIcons name="stars" size={40} color="#FFD700" />
+              <Text style={styles.badgeLabel}>Warrior</Text>
+            </View>
+
+            <View style={[styles.badgeCircle, { backgroundColor: theme.colors.background.secondary }]}>
+              <MaterialIcons name="local-fire-department" size={40} color="#FF9500" />
+              <Text style={styles.badgeLabel}>7 Day</Text>
+            </View>
+          </ScrollView>
+        </View>
+
+        {/* 5. PERSONAL INSIGHTS */}
+        <View style={styles.section}>
+          <Text style={styles.sectionHeader}>Personal Insights</Text>
+          <View style={[styles.insightCard, { backgroundColor: theme.colors.accent.primary + '10', borderColor: theme.colors.accent.primary + '30' }]}>
+            <Ionicons name="bulb-outline" size={24} color={theme.colors.accent.primary} style={{ marginRight: 16 }} />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.insightTitle, { color: theme.colors.text.primary }]}>Smart Tip</Text>
+              <Text style={[styles.insightText, { color: theme.colors.text.secondary }]}>
+                You reduce exposure by 40% when staying indoors on high AQI days. Great consistency!
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* 6. SETTINGS & CONTROLS */}
+        <View style={[styles.section, { marginBottom: 100 }]}>
+          <Text style={styles.sectionHeader}>Settings & Controls</Text>
+          <View style={[styles.settingsCard, { backgroundColor: theme.colors.background.secondary }]}>
+            <TouchableOpacity style={styles.settingsItem}>
+              <Feather name="globe" size={20} color={theme.colors.text.primary} />
+              <Text style={styles.settingsText}>Language (English)</Text>
+              <MaterialIcons name="chevron-right" size={24} color={theme.colors.text.muted} />
+            </TouchableOpacity>
+            
+            <TouchableOpacity style={styles.settingsItem}>
+              <Feather name="bell" size={20} color={theme.colors.text.primary} />
+              <Text style={styles.settingsText}>Notifications</Text>
+              <MaterialIcons name="chevron-right" size={24} color={theme.colors.text.muted} />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.settingsItem} onPress={() => setIsEditModalVisible(true)}>
+              <Feather name="user" size={20} color={theme.colors.text.primary} />
+              <Text style={styles.settingsText}>Edit Profile</Text>
+              <MaterialIcons name="chevron-right" size={24} color={theme.colors.text.muted} />
+            </TouchableOpacity>
+
+            <View style={styles.dividerLight} />
+
+            <TouchableOpacity style={styles.logoutBtnRow} onPress={onLogoutRequest}>
+              <Feather name="log-out" size={20} color={theme.colors.support.error} />
+              <Text style={styles.logoutText}>Log Out</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
       </ScrollView>
 
-      <LogoutModal 
-        visible={isLogoutModalVisible}
-        onCancel={() => setIsLogoutModalVisible(false)}
-        onConfirm={handleLogout}
-        theme={theme}
-      />
+
 
       <EditProfileModal 
         visible={isEditModalVisible}
@@ -134,62 +281,21 @@ const getStyles = (theme, isDarkMode) => StyleSheet.create({
     backgroundColor: theme.colors.background.primary,
   },
   scrollContent: {
-    padding: 24,
-    paddingTop: 60,
+    padding: 20,
+    paddingTop: Platform.OS === 'ios' ? 60 : 40,
   },
-  emptyContent: {
-    flex: 1,
+  identitySection: {
     alignItems: 'center',
-    justifyContent: 'center',
-    padding: 40,
-  },
-  iconCircleLarge: {
     marginBottom: 32,
-  },
-  emptyTitle: {
-    fontFamily: theme.fonts.headline.bold,
-    fontSize: 26,
-    color: theme.colors.text.primary,
-    marginBottom: 12,
-  },
-  emptyText: {
-    fontFamily: theme.fonts.body.regular,
-    fontSize: 16,
-    color: theme.colors.text.secondary,
-    textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 40,
-  },
-  loginBtn: {
-    backgroundColor: theme.colors.accent.primary,
-    paddingVertical: 18,
-    paddingHorizontal: 32,
-    borderRadius: 20,
-    width: '100%',
-    alignItems: 'center',
-    shadowColor: theme.colors.accent.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  loginBtnText: {
-    fontFamily: theme.fonts.body.bold,
-    fontSize: 16,
-    color: isDarkMode ? '#000' : '#fff',
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: 48,
   },
   avatarContainer: {
     position: 'relative',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   avatar: {
-    width: 110,
-    height: 110,
-    borderRadius: 55,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
     borderWidth: 4,
     borderColor: theme.colors.background.secondary,
   },
@@ -206,86 +312,306 @@ const getStyles = (theme, isDarkMode) => StyleSheet.create({
     borderColor: theme.colors.background.primary,
   },
   name: {
-    fontFamily: theme.fonts.headline.bold,
-    fontSize: 28,
+    fontFamily: 'SpaceGrotesk_700Bold',
+    fontSize: 26,
     color: theme.colors.text.primary,
     marginBottom: 4,
   },
-  email: {
-    fontFamily: theme.fonts.body.medium,
+  city: {
+    fontFamily: 'Inter_500Medium',
     fontSize: 15,
-    color: theme.colors.text.secondary,
+    color: theme.colors.text.muted,
+    marginBottom: 24,
   },
-  badge: {
-    backgroundColor: theme.colors.accent.primary + '15',
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 10,
-    marginTop: 16,
+  topStatsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.background.secondary,
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 24,
+    width: '100%',
+    justifyContent: 'space-between',
   },
-  badgeText: {
-    fontFamily: theme.fonts.label.bold,
-    fontSize: 11,
-    color: theme.colors.accent.primary,
-    letterSpacing: 1.5,
+  topStatItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  topStatValue: {
+    fontFamily: 'SpaceGrotesk_700Bold',
+    fontSize: 24,
+  },
+  topStatLabel: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 12,
+    color: theme.colors.text.muted,
+    marginTop: 2,
+  },
+  streakLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  divider: {
+    width: 1,
+    height: 30,
+    marginHorizontal: 20,
   },
   section: {
     marginBottom: 32,
   },
-  sectionTitle: {
-    fontFamily: theme.fonts.body.bold,
+  sectionHeader: {
+    fontFamily: 'SpaceGrotesk_700Bold',
+    fontSize: 18,
+    color: theme.colors.text.primary,
+    marginBottom: 16,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  impactGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  impactCard: {
+    width: (width - 60) / 3,
+    padding: 12,
+    borderRadius: 20,
+    alignItems: 'center',
+  },
+  impactIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  impactValue: {
+    fontFamily: 'SpaceGrotesk_700Bold',
+    fontSize: 18,
+    color: theme.colors.text.primary,
+    marginBottom: 4,
+  },
+  impactLabel: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 10,
+    color: theme.colors.text.muted,
+    textAlign: 'center',
+  },
+  card: {
+    borderRadius: 24,
+    padding: 24,
+  },
+  streakHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  cardTitle: {
+    fontFamily: 'SpaceGrotesk_700Bold',
+    fontSize: 18,
+    color: theme.colors.text.primary,
+  },
+  cardSubtitle: {
+    fontFamily: 'Inter_500Medium',
     fontSize: 13,
     color: theme.colors.text.muted,
-    textTransform: 'uppercase',
-    letterSpacing: 1.5,
-    marginBottom: 16,
-    marginLeft: 4,
+    marginTop: 2,
   },
-  menuItem: {
+  streakCountBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: theme.colors.background.secondary,
-    padding: 14,
-    borderRadius: 20,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.02)',
-  },
-  menuIconCircle: {
-    width: 44,
-    height: 44,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
+    gap: 6,
   },
-  menuText: {
-    flex: 1,
-    fontFamily: theme.fonts.body.semibold,
-    fontSize: 16,
-    color: theme.colors.text.primary,
-    marginLeft: 16,
+  streakCountText: {
+    fontFamily: 'SpaceGrotesk_700Bold',
+    fontSize: 22,
   },
-  logoutBtn: {
+  weekGrid: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 24,
+  },
+  dayCol: {
     alignItems: 'center',
+  },
+  dayLabel: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 11,
+    color: theme.colors.text.muted,
+    marginBottom: 10,
+  },
+  statusBox: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
     justifyContent: 'center',
-    padding: 16,
-    marginTop: 8,
-    backgroundColor: theme.colors.support.error + '10',
-    borderRadius: 20,
+    alignItems: 'center',
+    borderWidth: 1.5,
   },
-  logoutText: {
-    fontFamily: theme.fonts.body.bold,
-    fontSize: 16,
-    color: theme.colors.support.error,
-    marginLeft: 10,
+  statsRow: {
+    flexDirection: 'row',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.05)',
+    paddingTop: 20,
   },
-  versionText: {
-    textAlign: 'center',
-    marginTop: 32,
-    marginBottom: 20,
-    fontFamily: theme.fonts.body.medium,
+  statBox: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  statBoxValue: {
+    fontFamily: 'SpaceGrotesk_700Bold',
+    fontSize: 22,
+    color: theme.colors.text.primary,
+  },
+  statBoxLabel: {
+    fontFamily: 'Inter_500Medium',
     fontSize: 12,
     color: theme.colors.text.muted,
+    marginTop: 2,
+  },
+  pointsBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    gap: 6,
+  },
+  pointsValue: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 13,
+  },
+  horizontalScroll: {
+    marginHorizontal: -20,
+    paddingHorizontal: 20,
+  },
+  rewardCard: {
+    width: 140,
+    padding: 16,
+    borderRadius: 24,
+    marginRight: 12,
+    alignItems: 'center',
+  },
+  rewardIcon: {
+    marginBottom: 12,
+  },
+  rewardTitle: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 13,
+    color: theme.colors.text.primary,
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  rewardCost: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 11,
+    color: theme.colors.text.muted,
+  },
+  badgeCircle: {
+    width: 100,
+    height: 120,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  badgeLabel: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 11,
+    color: theme.colors.text.muted,
+    marginTop: 8,
+  },
+  insightCard: {
+    flexDirection: 'row',
+    padding: 20,
+    borderRadius: 24,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  insightTitle: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 15,
+    marginBottom: 4,
+  },
+  insightText: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  settingsCard: {
+    borderRadius: 24,
+    padding: 8,
+  },
+  settingsItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    gap: 16,
+  },
+  settingsText: {
+    flex: 1,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 15,
+    color: theme.colors.text.primary,
+  },
+  dividerLight: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    marginHorizontal: 16,
+  },
+  logoutBtnRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    gap: 16,
+  },
+  logoutText: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 15,
+    color: theme.colors.support.error,
+  },
+  emptyContent: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 40,
+  },
+  iconCircleLarge: {
+    marginBottom: 32,
+  },
+  emptyTitle: {
+    fontFamily: 'SpaceGrotesk_700Bold',
+    fontSize: 26,
+    color: theme.colors.text.primary,
+    marginBottom: 12,
+  },
+  emptyText: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 16,
+    color: theme.colors.text.secondary,
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 40,
+  },
+  loginBtn: {
+    backgroundColor: theme.colors.accent.primary,
+    paddingVertical: 18,
+    paddingHorizontal: 32,
+    borderRadius: 20,
+    width: '100%',
+    alignItems: 'center',
+  },
+  loginBtnText: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 16,
+    color: isDarkMode ? '#000' : '#fff',
   }
 });

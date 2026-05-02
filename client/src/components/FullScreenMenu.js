@@ -48,7 +48,14 @@ const MENU_SECTIONS = [
   },
 ];
 
-export default function FullScreenMenu({ visible, onClose }) {
+export default function FullScreenMenu({ 
+  visible, 
+  onClose, 
+  onNavigate = () => {}, 
+  onLogout = () => {}, 
+  onReport = () => {},
+  onLocation = () => {} 
+}) {
   const { theme, isDarkMode, toggleTheme } = useAppTheme();
   const styles = getStyles(theme, isDarkMode);
   
@@ -115,8 +122,36 @@ export default function FullScreenMenu({ visible, onClose }) {
       );
     }
 
+    const handlePress = () => {
+      if (item.id === 'profile') {
+        onNavigate(5);
+        onClose();
+      } else if (item.id === 'progress') {
+        onNavigate(3);
+        onClose();
+      } else if (item.id === 'logout') {
+        onLogout();
+        onClose();
+      } else if (item.id === 'report') {
+        onReport();
+        onClose();
+      } else if (item.id === 'location') {
+        onLocation();
+        onClose();
+      } else {
+        // Fallback for others
+        console.log(`Menu Item pressed: ${item.id}`);
+        onClose();
+      }
+    };
+
     return (
-      <TouchableOpacity key={item.id} style={styles.menuItem} activeOpacity={0.6}>
+      <TouchableOpacity 
+        key={item.id} 
+        style={styles.menuItem} 
+        activeOpacity={0.6}
+        onPress={handlePress}
+      >
         <View style={[styles.itemIconContainer, item.isDestructive && styles.itemIconDestructive]}>
           <MaterialIcons
             name={item.icon}

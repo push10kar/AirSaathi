@@ -12,6 +12,7 @@ router.get('/health', (req, res) => res.json({ status: 'ok' }));
 router.use('/auth', authRoutes);
 router.use('/posts', postRoutes);
 router.use('/aqi', aqiRoutes);
+router.use('/reports', require('./reportRoutes'));
 
 // User routes (keeping your existing structure but moving it here)
 router.get('/users', async (req, res, next) => {
