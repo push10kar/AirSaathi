@@ -12,12 +12,14 @@ import {
 import { MaterialIcons, Feather, Ionicons } from '@expo/vector-icons';
 import { useAppTheme } from '../context/ThemeContext';
 import { useLocation } from '../context/LocationContext';
+import LocationSearchModal from './LocationSearchModal';
 
 export default function LocationControlModal({ visible, onClose }) {
   const { theme, isDarkMode } = useAppTheme();
-  const { location, detectLocation, setManualLocation } = useLocation();
+  const { location, toggleAutoLocation } = useLocation();
+  const [searchVisible, setSearchVisible] = useState(false);
   
-  // Mock saved places (In a real app, these would come from the context/storage)
+  // Local state for saved places (In production, this would be in Context + Storage)
   const [savedPlaces, setSavedPlaces] = useState([
     { id: '1', city: 'Mumbai', aqi: 156, status: 'Poor', isPinned: false },
     { id: '2', city: 'Delhi', aqi: 312, status: 'Hazardous', isPinned: true },
@@ -31,6 +33,10 @@ export default function LocationControlModal({ visible, onClose }) {
       ...p,
       isPinned: p.id === id ? !p.isPinned : false // Only one pinned at a time
     })));
+  };
+
+  const handleAddNew = () => {
+    setSearchVisible(true);
   };
 
   return (
@@ -76,7 +82,7 @@ export default function LocationControlModal({ visible, onClose }) {
                 </View>
                 <Switch 
                   value={location.isAuto} 
-                  onValueChange={detectLocation}
+                  onValueChange={toggleAutoLocation}
                   trackColor={{ false: theme.colors.background.elevated, true: theme.colors.accent.primary }}
                   thumbColor={Platform.OS === 'ios' ? '#fff' : (location.isAuto ? '#fff' : '#f4f3f4')}
                 />
@@ -112,7 +118,7 @@ export default function LocationControlModal({ visible, onClose }) {
             {/* 3. SAVED PLACES */}
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionLabel}>Saved Places</Text>
-              <TouchableOpacity style={styles.addBtn}>
+              <TouchableOpacity style={styles.addBtn} onPress={handleAddNew}>
                 <Feather name="plus" size={18} color={theme.colors.accent.primary} />
                 <Text style={styles.addBtnText}>Add New</Text>
               </TouchableOpacity>
@@ -145,6 +151,12 @@ export default function LocationControlModal({ visible, onClose }) {
           </ScrollView>
         </View>
       </View>
+
+      {/* Integration of Search Modal like Swiggy/Zomato */}
+      <LocationSearchModal 
+        visible={searchVisible}
+        onClose={() => setSearchVisible(false)}
+      />
     </Modal>
   );
 }

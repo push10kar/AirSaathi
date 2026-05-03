@@ -1,28 +1,68 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as WebBrowser from 'expo-web-browser';
+import * as AuthSession from 'expo-auth-session';
+import * as Crypto from 'expo-crypto';
+import { API_URL } from '../config';
+import apiRequest, { registerLogoutCallback } from '../services/apiClient';
+
+WebBrowser.maybeCompleteAuthSession();
 
 const AuthContext = createContext(null);
 
-// API URL Configuration
-// Use '10.0.2.2' for Android Emulator, or your computer's local IP (e.g. 192.168.1.5) for physical devices
-const API_URL = 'http://10.0.2.2:5000/api'; 
+const GOOGLE_CLIENT_ID = '277638910041-q4q3v6mmvo71fps5utdh18n323c63jbe.apps.googleusercontent.com';
+
+const discovery = {
+  authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
+  tokenEndpoint: 'https://oauth2.googleapis.com/token',
+};
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [token, setToken] = useState(null);
+  const [token, setToken] = useState(null); // Kept as 'token' for backward compat (= access token)
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthModalVisible, setIsAuthModalVisible] = useState(false);
   const [pendingAction, setPendingAction] = useState(null);
 
+  // ─── Google OAuth Setup ────────────────────────────────────────
+  const redirectUri = AuthSession.makeRedirectUri({ useProxy: true });
+
+  const [request, response, promptAsync] = AuthSession.useAuthRequest(
+    {
+      clientId: GOOGLE_CLIENT_ID,
+      scopes: ['openid', 'profile', 'email'],
+      redirectUri,
+      responseType: 'id_token',
+      usePKCE: false,
+      extraParams: { nonce: Crypto.randomUUID() },
+    },
+    discovery
+  );
+
+  // Handle Google OAuth response
+  useEffect(() => {
+    if (response?.type === 'success') {
+      const { id_token } = response.params;
+      if (id_token) {
+        handleGoogleToken(id_token);
+      }
+    }
+  }, [response]);
+
+  // Register logout callback for apiClient auto-logout on refresh failure
+  useEffect(() => {
+    registerLogoutCallback(logout);
+  }, []);
+
+  // ─── Persist Session on App Start ─────────────────────────────
   useEffect(() => {
     loadStoredData();
   }, []);
 
   const loadStoredData = async () => {
     try {
-      const storedToken = await AsyncStorage.getItem('auth_token');
+      const storedToken = await AsyncStorage.getItem('access_token');
       const storedUser = await AsyncStorage.getItem('user_data');
-      
       if (storedToken && storedUser) {
         setToken(storedToken);
         setUser(JSON.parse(storedUser));
@@ -34,21 +74,26 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const saveAuthData = async (accessToken, refreshToken, userData) => {
+    setToken(accessToken);
+    setUser(userData);
+    await AsyncStorage.setItem('access_token', accessToken);
+    await AsyncStorage.setItem('refresh_token', refreshToken);
+    await AsyncStorage.setItem('user_data', JSON.stringify(userData));
+  };
+
+  // ─── Email / Password Auth ─────────────────────────────────────
   const login = async (email, password) => {
     try {
-      const response = await fetch(`${API_URL}/auth/login`, {
+      const { response, data } = await apiRequest('/auth/login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
-      
-      const data = await response.json();
       if (data.status === 'success') {
-        await saveAuthData(data.token, data.data.user);
+        await saveAuthData(data.accessToken, data.refreshToken, data.data.user);
         return { success: true };
-      } else {
-        return { success: false, message: data.message };
       }
+      return { success: false, message: data.message };
     } catch (e) {
       return { success: false, message: 'Connection error' };
     }
@@ -56,33 +101,53 @@ export const AuthProvider = ({ children }) => {
 
   const signup = async (userData) => {
     try {
-      const response = await fetch(`${API_URL}/auth/signup`, {
+      const { response, data } = await apiRequest('/auth/signup', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(userData),
       });
-      
-      const data = await response.json();
       if (data.status === 'success') {
-        await saveAuthData(data.token, data.data.user);
+        await saveAuthData(data.accessToken, data.refreshToken, data.data.user);
         return { success: true };
-      } else {
-        return { success: false, message: data.message };
       }
+      return { success: false, message: data.message };
     } catch (e) {
       return { success: false, message: 'Connection error' };
     }
   };
 
+  // ─── Google Sign-In ────────────────────────────────────────────
+  const loginWithGoogle = async () => {
+    try {
+      await promptAsync();
+      // Result handled by the useEffect above
+      return { success: true };
+    } catch (e) {
+      return { success: false, message: 'Google Sign-In failed' };
+    }
+  };
+
+  const handleGoogleToken = async (idToken) => {
+    try {
+      const { data } = await apiRequest('/auth/google', {
+        method: 'POST',
+        body: JSON.stringify({ idToken }),
+      });
+      if (data.status === 'success') {
+        await saveAuthData(data.accessToken, data.refreshToken, data.data.user);
+        onAuthSuccess();
+      }
+    } catch (e) {
+      console.error('Google auth failed:', e.message);
+    }
+  };
+
+  // ─── OTP Auth ──────────────────────────────────────────────────
   const requestOtp = async (phone) => {
     try {
-      const response = await fetch(`${API_URL}/auth/request-otp`, {
+      const { data } = await apiRequest('/auth/request-otp', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone }),
       });
-      
-      const data = await response.json();
       return { success: data.status === 'success', message: data.message, code: data.code };
     } catch (e) {
       return { success: false, message: 'Connection error' };
@@ -91,67 +156,58 @@ export const AuthProvider = ({ children }) => {
 
   const verifyOtp = async (phone, code) => {
     try {
-      const response = await fetch(`${API_URL}/auth/verify-otp`, {
+      const { data } = await apiRequest('/auth/verify-otp', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone, code }),
       });
-      
-      const data = await response.json();
       if (data.status === 'success') {
-        await saveAuthData(data.token, data.data.user);
+        await saveAuthData(data.accessToken, data.refreshToken, data.data.user);
         return { success: true, isNewUser: data.isNewUser };
-      } else {
-        return { success: false, message: data.message };
       }
+      return { success: false, message: data.message };
     } catch (e) {
       return { success: false, message: 'Connection error' };
     }
   };
 
+  // ─── Profile Update ────────────────────────────────────────────
   const updateProfile = async (profileData) => {
     try {
-      const response = await fetch(`${API_URL}/auth/update-me`, {
+      const { data } = await apiRequest('/auth/update-me', {
         method: 'PATCH',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
         body: JSON.stringify(profileData),
       });
-      
-      const data = await response.json();
       if (data.status === 'success') {
         setUser(data.data.user);
         await AsyncStorage.setItem('user_data', JSON.stringify(data.data.user));
         return { success: true };
-      } else {
-        return { success: false, message: data.message };
       }
+      return { success: false, message: data.message };
     } catch (e) {
       return { success: false, message: 'Connection error' };
     }
   };
 
-  const saveAuthData = async (newToken, userData) => {
-    setToken(newToken);
-    setUser(userData);
-    await AsyncStorage.setItem('auth_token', newToken);
-    await AsyncStorage.setItem('user_data', JSON.stringify(userData));
-  };
-
+  // ─── Logout ────────────────────────────────────────────────────
   const logout = async () => {
+    try {
+      const refreshToken = await AsyncStorage.getItem('refresh_token');
+      if (refreshToken) {
+        // Revoke the session on the server (fire and forget)
+        fetch(`${API_URL}/auth/logout`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refreshToken }),
+        }).catch(() => {}); // Don't block UI on network failure
+      }
+    } catch (e) {}
+
     setToken(null);
     setUser(null);
-    await AsyncStorage.removeItem('auth_token');
-    await AsyncStorage.removeItem('user_data');
+    await AsyncStorage.multiRemove(['access_token', 'refresh_token', 'user_data']);
   };
 
-  /**
-   * THE SOFT GATE TRIGGER
-   * Use this function to wrap any gated action.
-   * Example: onPress={() => requireAuth(() => handleLike())}
-   */
+  // ─── Soft Gate ─────────────────────────────────────────────────
   const requireAuth = (action) => {
     if (user) {
       action();
@@ -175,12 +231,13 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ 
-      user, 
-      token, 
-      isLoading, 
-      login, 
-      signup, 
+    <AuthContext.Provider value={{
+      user,
+      token,       // = access token (kept for backward compat)
+      isLoading,
+      login,
+      signup,
+      loginWithGoogle,
       requestOtp,
       verifyOtp,
       updateProfile,
@@ -188,7 +245,9 @@ export const AuthProvider = ({ children }) => {
       requireAuth,
       isAuthModalVisible,
       closeAuthModal,
-      onAuthSuccess
+      onAuthSuccess,
+      // Expose for Google button disabled state
+      googleAuthRequest: request,
     }}>
       {children}
     </AuthContext.Provider>

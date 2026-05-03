@@ -25,6 +25,7 @@ export default function AuthModal() {
     requestOtp, 
     verifyOtp,
     updateProfile,
+    loginWithGoogle,
     onAuthSuccess 
   } = useAuth();
 
@@ -135,6 +136,24 @@ export default function AuthModal() {
       <Text style={[styles.title, { color: theme.colors.text.primary }]}>Welcome to AirSaathi</Text>
       <Text style={[styles.subtitle, { color: theme.colors.text.secondary }]}>Join thousands of citizens taking action for cleaner air.</Text>
       
+      {/* Google Sign-In — Primary CTA */}
+      <TouchableOpacity 
+        style={[styles.googleBtn, { backgroundColor: isDarkMode ? '#fff' : '#fff', borderColor: '#ddd' }]} 
+        onPress={async () => {
+          const result = await loginWithGoogle();
+          if (result?.success === false) setError(result.message);
+        }}
+      >
+        <Text style={styles.googleIcon}>G</Text>
+        <Text style={[styles.googleBtnText]}>Continue with Google</Text>
+      </TouchableOpacity>
+
+      <View style={styles.dividerRow}>
+        <View style={[styles.dividerLine, { backgroundColor: theme.colors.background.elevated }]} />
+        <Text style={[styles.dividerText, { color: theme.colors.text.muted }]}>or</Text>
+        <View style={[styles.dividerLine, { backgroundColor: theme.colors.background.elevated }]} />
+      </View>
+
       <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: theme.colors.accent.primary }]} onPress={() => switchView('PHONE_INPUT')}>
         <Feather name="phone" size={20} color={isDarkMode ? '#000' : '#fff'} />
         <Text style={[styles.primaryBtnText, { color: isDarkMode ? '#000' : '#fff' }]}>Continue with Phone</Text>
@@ -404,6 +423,47 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_600SemiBold',
     marginBottom: 16,
     textAlign: 'center',
+  },
+  googleBtn: {
+    width: '100%',
+    height: 60,
+    borderRadius: 16,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+    borderWidth: 1.5,
+    gap: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  googleIcon: {
+    fontSize: 20,
+    fontFamily: 'Inter_700Bold',
+    color: '#4285F4',
+  },
+  googleBtnText: {
+    fontSize: 16,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#1a1a1a',
+  },
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    marginBottom: 16,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+  },
+  dividerText: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 13,
+    marginHorizontal: 12,
   },
   inputWrapper: {
     flexDirection: 'row',

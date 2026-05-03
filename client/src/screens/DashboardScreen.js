@@ -1,36 +1,25 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   StyleSheet,
   Text,
   View,
   ScrollView,
-  Image,
-  TouchableOpacity,
-  ActivityIndicator,
   RefreshControl,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useAppTheme } from '../context/ThemeContext';
 import { useLocation } from '../context/LocationContext';
-import CircularProgress from '../components/CircularProgress';
 import ApplianceCard from '../components/ApplianceCard';
-import TopAppBar from '../components/TopAppBar';
 import AQIHero from '../components/AQIHero';
 import DailyActions from '../components/DailyActions';
 import InsightCard from '../components/InsightCard';
 import CommunityPreview from '../components/CommunityPreview';
 
-// API Configuration
-// Use '10.0.2.2' for Android Emulator, or your computer's local IP (e.g. 192.168.1.5) for physical devices
-const API_BASE_URL = 'http://10.0.2.2:5000/api'; 
-
-export default function DashboardScreen({ onMenuPress }) {
+export default function DashboardScreen() {
   const { theme, isDarkMode } = useAppTheme();
-  const { location, loading: locationLoading } = useLocation();
+  const { location, aqiData, nearestStation, loading: locationLoading, detectLocation } = useLocation();
   const styles = getStyles(theme);
 
-  const [aqiData, setAqiData] = useState({ aqi: 42, city: location.city });
-  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   
   const [hvacActive, setHvacActive] = useState(true);
@@ -48,30 +37,15 @@ export default function DashboardScreen({ onMenuPress }) {
     setDailyActions(prev => prev.map(a => a.id === id ? { ...a, completed: newState } : a));
   };
 
-  const fetchAQI = async () => {
-    try {
-      const { latitude, longitude } = location.coords;
-      const response = await fetch(`${API_BASE_URL}/aqi/live?lat=${latitude}&lng=${longitude}`);
-      const data = await response.json();
-      if (data && data.aqi) {
-        setAqiData(data);
-      }
-    } catch (error) {
-      console.error('Failed to fetch AQI:', error);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchAQI();
-  }, [location.coords]); // Re-fetch when location changes
-
-  const onRefresh = () => {
+  const onRefresh = async () => {
     setRefreshing(true);
-    fetchAQI();
+    await detectLocation();
+    setRefreshing(false);
   };
+
+  // Default values while loading
+  const displayAqi = aqiData?.aqi || 0;
+  const displayStation = nearestStation ? `${nearestStation.name} (${nearestStation.distance} km)` : "Finding nearest station...";
 
   return (
     <View style={styles.container}>
@@ -86,25 +60,23 @@ export default function DashboardScreen({ onMenuPress }) {
         
         {/* AQI Hero Section */}
         <AQIHero 
-          aqi={aqiData.aqi} 
-          nearbyArea="Pimpri-Chinchwad" 
+          aqi={displayAqi} 
+          nearbyArea={displayStation} 
           theme={theme} 
         />
 
         {/* Stats Metadata (Left & Right) */}
         <View style={styles.statsContainer}>
           <View style={styles.statBoxLeft}>
-            <Text style={styles.statLabel}>TEMPERATURE</Text>
+            <Text style={styles.statLabel}>PM2.5</Text>
             <View style={styles.statValueRow}>
-              <Text style={styles.statValuePrimary}>28°C</Text>
-              <Feather name="thermometer" size={16} color={theme.colors.accent.primary} style={{ marginLeft: 4, marginTop: 4 }} />
+              <Text style={styles.statValuePrimary}>{aqiData?.pm25 || '--'} µg/m³</Text>
             </View>
           </View>
           <View style={styles.statBoxRight}>
-            <Text style={styles.statLabelRight}>HUMIDITY</Text>
+            <Text style={styles.statLabelRight}>PM10</Text>
             <View style={styles.statValueRowRight}>
-              <Text style={styles.statValueNormal}>45%</Text>
-              <Feather name="droplet" size={16} color={theme.colors.support.teal} style={{ marginLeft: 4, marginTop: 4 }} />
+              <Text style={styles.statValueNormal}>{aqiData?.pm10 || '--'} µg/m³</Text>
             </View>
           </View>
         </View>
@@ -165,7 +137,10 @@ export default function DashboardScreen({ onMenuPress }) {
           <View style={styles.bentoCardSmall}>
             <Feather name="bell" size={32} color={theme.colors.background.primary} />
             <Text style={styles.bentoSmallTitle}>Smart Alert</Text>
-            <Text style={styles.bentoSmallDescription}>AQI is predicted to rise this evening. Consider closing windows by 6 PM.</Text>
+            <Text style={styles.bentoSmallDescription}>
+              Current status: {aqiData?.category || 'Analyzing...'}. 
+              {displayAqi > 100 ? ' High pollution levels detected. Keep windows closed.' : ' Air quality is acceptable for outdoor activity.'}
+            </Text>
             <Text style={styles.bentoSmallStatus}>Active</Text>
           </View>
         </View>
@@ -235,12 +210,12 @@ const getStyles = (theme) => StyleSheet.create({
   },
   statValuePrimary: {
     fontFamily: theme.fonts.headline.bold,
-    fontSize: 24,
+    fontSize: 22,
     color: theme.colors.accent.primary,
   },
   statValueNormal: {
     fontFamily: theme.fonts.headline.bold,
-    fontSize: 24,
+    fontSize: 22,
     color: theme.colors.text.primary,
   },
   sectionHeader: {

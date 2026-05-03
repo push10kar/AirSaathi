@@ -12,6 +12,7 @@ import DashboardScreen from './src/screens/DashboardScreen';
 import ActionScreen from './src/screens/ActionScreen';
 import CommunityScreen from './src/screens/CommunityScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
+import LearnScreen from './src/screens/LearnScreen';
 import BottomNavBar, { TABS } from './src/components/BottomNavBar';
 import FullScreenMenu from './src/components/FullScreenMenu';
 import TopAppBar from './src/components/TopAppBar';
@@ -106,7 +107,7 @@ function AppContent() {
           <DashboardScreen />
         </View>
         <View style={{ width: SCREEN_WIDTH, flex: 1 }}>
-          <PlaceholderScreen title="Learn" />
+          <LearnScreen onNavigateToAction={() => handleTabPress(3)} />
         </View>
         <View style={{ width: SCREEN_WIDTH, flex: 1 }}>
           <CommunityScreen />

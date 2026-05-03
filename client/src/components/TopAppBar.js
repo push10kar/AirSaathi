@@ -1,14 +1,31 @@
-import React, { useState } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
+import React, { useState, useMemo } from 'react';
+import { StyleSheet, View, Text, TouchableOpacity, Image } from 'react-native';
 import { MaterialIcons, Feather } from '@expo/vector-icons';
 import { useAppTheme } from '../context/ThemeContext';
 import { useLocation } from '../context/LocationContext';
 import { useAuth } from '../context/AuthContext';
 import LocationSearchModal from './LocationSearchModal';
-import { Image } from 'react-native';
+
+const GREETINGS = {
+  morning: ["Good Morning", "Rise & Shine", "Start Fresh", "Breathe Deep", "Morning"],
+  afternoon: ["Good Afternoon", "Stay Refreshed", "Afternoon Vibes", "Keep Going", "Stay Active"],
+  evening: ["Good Evening", "Wind Down", "Evening Calm", "Stay Protected", "Evening Updates"],
+  night: ["Good Night", "Rest Well", "Night Mode On", "Stay Indoors", "Dream Green"]
+};
+
+const getDynamicGreeting = () => {
+  const hour = new Date().getHours();
+  let timeSlot = 'morning';
+  if (hour >= 12 && hour < 17) timeSlot = 'afternoon';
+  else if (hour >= 17 && hour < 21) timeSlot = 'evening';
+  else if (hour >= 21 || hour < 5) timeSlot = 'night';
+  
+  const options = GREETINGS[timeSlot];
+  const index = new Date().getDate() % options.length;
+  return options[index];
+};
 
 export default function TopAppBar({ 
-  greeting = "GOOD MORNING!", 
   onMenuPress, 
   onProfilePress,
   onStreakPress,
@@ -18,6 +35,11 @@ export default function TopAppBar({
   const { location } = useLocation();
   const { user, requireAuth } = useAuth();
   const [searchVisible, setSearchVisible] = useState(false);
+  
+  const greetingBase = useMemo(() => getDynamicGreeting(), []);
+  const firstName = user?.name ? user.name.split(' ')[0] : '';
+  const fullGreeting = firstName ? `${greetingBase}, ${firstName}!` : `${greetingBase.toUpperCase()}!`;
+  
   const styles = getStyles(theme, isDarkMode);
 
   return (
@@ -27,7 +49,7 @@ export default function TopAppBar({
           <MaterialIcons name="menu" size={28} color={theme.colors.accent.primary} />
         </TouchableOpacity>
         <View>
-          <Text style={styles.greetingText}>{greeting.toUpperCase()}</Text>
+          <Text style={styles.greetingText}>{fullGreeting}</Text>
           <TouchableOpacity style={styles.locationContainer} onPress={() => setSearchVisible(true)}>
             <MaterialIcons name="location-on" size={14} color={theme.colors.text.secondary} />
             <Text style={styles.locationText}>{location.city}, MH</Text>
