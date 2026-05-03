@@ -1,85 +1,133 @@
-const axios = require('axios');
+const pool = require('../config/db');
 
-// In-memory cache to avoid hitting API limits
-const cache = new Map();
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
-
-const WAQI_TOKEN = process.env.WAQI_TOKEN || 'demo'; // 'demo' works for some requests, but user should get their own
-
+/**
+ * AQI Controller — Professional Location-based AQI logic
+ * Using Haversine formula in SQL for proximity search without PostGIS
+ */
 const aqiController = {
-  getLiveAQI: async (req, res, next) => {
+  
+  /**
+   * GET /aqi/nearest?lat=X&lng=Y
+   * Find the nearest monitoring station to a given coordinate
+   */
+  getNearestStation: async (req, res, next) => {
     try {
-      const { city, lat, lng } = req.query;
+      const { lat, lng } = req.query;
+      if (!lat || !lng) {
+        return res.status(400).json({ status: 'error', message: 'Latitude and Longitude are required' });
+      }
+
+      // 3959 = Miles, 6371 = Kilometers
+      const query = `
+        SELECT 
+          id, name, city, agency, lat, lng,
+          (6371 * acos(
+            cos(radians($1)) * cos(radians(lat)) * 
+            cos(radians(lng) - radians($2)) + 
+            sin(radians($1)) * sin(radians(lat))
+          )) AS distance_km
+        FROM aqi_stations
+        WHERE is_active = TRUE
+        ORDER BY distance_km ASC
+        LIMIT 1
+      `;
+
+      const result = await pool.query(query, [lat, lng]);
       
-      let target;
-      let cacheKey;
-
-      if (lat && lng) {
-        target = `geo:${lat};${lng}`;
-        cacheKey = `coords:${lat.slice(0, 5)};${lng.slice(0, 5)}`; // Precise to ~1km for caching
-      } else {
-        target = city || 'pune';
-        cacheKey = `city:${target}`;
+      if (result.rows.length === 0) {
+        return res.status(404).json({ status: 'error', message: 'No monitoring stations found' });
       }
 
-      // Check cache first
-      if (cache.has(cacheKey)) {
-        const cachedData = cache.get(cacheKey);
-        if (Date.now() - cachedData.timestamp < CACHE_DURATION) {
-          return res.json(cachedData.data);
-        }
-      }
-
-      // Fetch from WAQI API
-      const url = `https://api.waqi.info/feed/${target}/?token=${WAQI_TOKEN}`;
-      const response = await axios.get(url);
-
-      if (response.data.status !== 'ok') {
-        return res.status(404).json({ 
-          status: 'error', 
-          message: 'City not found or API error',
-          debug: response.data.data 
-        });
-      }
-
-      const rawData = response.data.data;
-      
-      // Transform into a cleaner format for our app
-      const formattedData = {
-        city: rawData.city.name,
-        aqi: rawData.aqi,
-        main_pollutant: rawData.dominentpol,
-        temp: rawData.iaqi.t?.v,
-        humidity: rawData.iaqi.h?.v,
-        time: rawData.time.s,
-        station_coords: rawData.city.geo,
-        last_updated: new Date().toISOString()
-      };
-
-      // Save to cache
-      cache.set(cacheKey, {
-        timestamp: Date.now(),
-        data: formattedData
+      res.json({
+        status: 'success',
+        data: result.rows[0]
       });
-
-      res.json(formattedData);
     } catch (err) {
       next(err);
     }
   },
 
-  // Get multiple major cities in Maharashtra at once
-  getMaharashtraOverview: async (req, res, next) => {
-    const cities = ['mumbai', 'pune', 'nagpur', 'nashik', 'aurangabad', 'thane'];
+  /**
+   * GET /aqi/current?lat=X&lng=Y
+   * Get latest AQI data from the nearest station
+   */
+  getAQIForLocation: async (req, res, next) => {
     try {
-      const results = await Promise.all(
-        cities.map(async (city) => {
-          const url = `https://api.waqi.info/feed/${city}/?token=${WAQI_TOKEN}`;
-          const resp = await axios.get(url);
-          return resp.data.status === 'ok' ? { city, aqi: resp.data.data.aqi } : null;
-        })
-      );
-      res.json(results.filter(r => r !== null));
+      const { lat, lng } = req.query;
+      if (!lat || !lng) {
+        return res.status(400).json({ status: 'error', message: 'Latitude and Longitude are required' });
+      }
+
+      const query = `
+        WITH nearest_station AS (
+          SELECT 
+            id, name, city, lat, lng,
+            (6371 * acos(
+              cos(radians($1)) * cos(radians(lat)) * 
+              cos(radians(lng) - radians($2)) + 
+              sin(radians($1)) * sin(radians(lat))
+            )) AS distance_km
+          FROM aqi_stations
+          WHERE is_active = TRUE
+          ORDER BY distance_km ASC
+          LIMIT 3
+        )
+        SELECT 
+          ns.name as station_name,
+          ns.city,
+          ns.distance_km,
+          r.aqi,
+          r.aqi_category,
+          r.pm25,
+          r.pm10,
+          r.no2,
+          r.so2,
+          r.co,
+          r.o3,
+          r.recorded_at
+        FROM nearest_station ns
+        LEFT JOIN LATERAL (
+          SELECT * FROM aqi_readings
+          WHERE station_id = ns.id
+          ORDER BY recorded_at DESC
+          LIMIT 1
+        ) r ON TRUE
+        ORDER BY ns.distance_km ASC
+      `;
+
+      const result = await pool.query(query, [lat, lng]);
+      
+      res.json({
+        status: 'success',
+        data: result.rows // Returns top 3 closest stations with their latest data
+      });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  /**
+   * GET /aqi/history/:stationId?hours=24
+   */
+  getStationHistory: async (req, res, next) => {
+    try {
+      const { stationId } = req.params;
+      const hours = req.query.hours || 24;
+
+      const query = `
+        SELECT aqi, pm25, pm10, aqi_category, recorded_at
+        FROM aqi_readings
+        WHERE station_id = $1
+          AND recorded_at >= NOW() - INTERVAL '1 hour' * $2
+        ORDER BY recorded_at ASC
+      `;
+
+      const result = await pool.query(query, [stationId, hours]);
+      
+      res.json({
+        status: 'success',
+        data: result.rows
+      });
     } catch (err) {
       next(err);
     }
