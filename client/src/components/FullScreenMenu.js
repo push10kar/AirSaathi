@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useMemo } from 'react';
 import {
   StyleSheet,
   View,
@@ -29,7 +29,6 @@ const MENU_SECTIONS = [
   },
   {
     items: [
-      { id: 'theme', label: 'Appearance', icon: 'contrast', isThemeToggle: true },
       { id: 'language', label: 'Language', icon: 'translate', subtitle: 'English, Hindi, Marathi' },
       { id: 'preferences', label: 'Personalization', icon: 'tune', subtitle: 'Sensitivity, indoor/outdoor' },
     ],
@@ -48,16 +47,111 @@ const MENU_SECTIONS = [
   },
 ];
 
-export default function FullScreenMenu({ 
+import { useAuth } from '../context/AuthContext';
+
+const ModernThemeToggle = React.memo(({ isDarkMode, onToggle, theme, styles }) => {
+  // Use a local state for optimistic UI updates
+  const [localDark, setLocalDark] = React.useState(isDarkMode);
+  const animatedValue = useRef(new Animated.Value(isDarkMode ? 1 : 0)).current;
+
+  // Sync local state if global state changes from elsewhere
+  useEffect(() => {
+    if (isDarkMode !== localDark) {
+      setLocalDark(isDarkMode);
+      Animated.spring(animatedValue, {
+        toValue: isDarkMode ? 1 : 0,
+        useNativeDriver: true,
+        stiffness: 300,
+        damping: 25,
+      }).start();
+    }
+  }, [isDarkMode]);
+
+  const handleToggle = () => {
+    const newState = !localDark;
+    setLocalDark(newState);
+    
+    // Start animation immediately on the native thread
+    Animated.spring(animatedValue, {
+      toValue: newState ? 1 : 0,
+      useNativeDriver: true,
+      stiffness: 300,
+      damping: 25,
+      mass: 1,
+    }).start();
+
+    // Defer the heavy global theme change to the next tick
+    // This allows the animation to start instantly without JS thread blockage
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        onToggle();
+      }, 0); 
+    });
+  };
+
+  const translateX = animatedValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: [4, 24],
+  });
+
+  const darkOpacity = animatedValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 1],
+  });
+
+  const lightOpacity = animatedValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 0],
+  });
+
+  return (
+    <TouchableOpacity 
+      activeOpacity={0.8} 
+      onPress={handleToggle}
+      style={{ marginRight: 16 }}
+    >
+      <View style={styles.toggleTrack}>
+        <Animated.View style={[
+          StyleSheet.absoluteFill, 
+          { backgroundColor: '#E2E8F0', borderRadius: 16, opacity: lightOpacity }
+        ]} />
+        
+        <Animated.View style={[
+          StyleSheet.absoluteFill, 
+          { backgroundColor: '#1B3321', borderRadius: 16, opacity: darkOpacity }
+        ]} />
+
+        <Animated.View style={[
+          styles.toggleThumb, 
+          { 
+            transform: [{ translateX }],
+            backgroundColor: localDark ? '#c4ff01' : '#FFFFFF' 
+          }
+        ]}>
+          <Animated.View style={{ opacity: lightOpacity, alignItems: 'center', justifyContent: 'center' }}>
+            <MaterialIcons name="light-mode" size={12} color="#718096" />
+          </Animated.View>
+          <Animated.View style={{ position: 'absolute', opacity: darkOpacity, alignItems: 'center', justifyContent: 'center' }}>
+            <MaterialIcons name="dark-mode" size={12} color="#1B3321" />
+          </Animated.View>
+        </Animated.View>
+      </View>
+    </TouchableOpacity>
+  );
+});
+
+const FullScreenMenu = React.memo(function FullScreenMenu({ 
   visible, 
   onClose, 
   onNavigate = () => {}, 
   onLogout = () => {}, 
   onReport = () => {},
-  onLocation = () => {} 
+  onLocation = () => {},
+  onAdminPress = () => {}
 }) {
   const { theme, isDarkMode, toggleTheme } = useAppTheme();
-  const styles = getStyles(theme, isDarkMode);
+  const { user } = useAuth();
+  const styles = useMemo(() => getStyles(theme, isDarkMode), [theme, isDarkMode]);
   
   const slideAnim = useRef(new Animated.Value(-height)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -96,35 +190,46 @@ export default function FullScreenMenu({
     }
   }, [visible]);
 
+  const isAnimating = useRef(false);
+  useEffect(() => {
+    isAnimating.current = true;
+    const timer = setTimeout(() => {
+      isAnimating.current = false;
+    }, 400); // Wait for spring to settle
+    return () => clearTimeout(timer);
+  }, [visible]);
+
+  // Dynamically compute the menu sections based on the user's role
+  const sections = useMemo(() => {
+    console.log('[DEBUG AUTH] FullScreenMenu - Current User:', user ? { email: user.email, role: user.role } : 'Guest');
+    if (user?.role === 'admin') {
+      return [
+        {
+          items: [
+            { 
+              id: 'admin', 
+              label: 'Admin Dashboard', 
+              icon: 'security', 
+              subtitle: 'Moderate community, manage rewards, edit syllabus' 
+            }
+          ]
+        },
+        ...MENU_SECTIONS
+      ];
+    }
+    return MENU_SECTIONS;
+  }, [user]);
+
   if (!visible && slideAnim._value === -height) return null;
 
   const renderItem = (item) => {
-    if (item.isThemeToggle) {
-      return (
-        <View key={item.id} style={styles.menuItem}>
-          <View style={styles.itemIconContainer}>
-            <MaterialIcons
-              name={isDarkMode ? 'dark-mode' : 'light-mode'}
-              size={20}
-              color={theme.colors.accent.primary}
-            />
-          </View>
-          <Text style={styles.itemLabel}>
-            {isDarkMode ? 'Dark Mode' : 'Light Mode'}
-          </Text>
-          <Switch
-            value={isDarkMode}
-            onValueChange={toggleTheme}
-            trackColor={{ false: theme.colors.text.secondary, true: theme.colors.accent.primary }}
-            thumbColor={isDarkMode ? '#000' : '#fff'}
-          />
-        </View>
-      );
-    }
-
     const handlePress = () => {
-      if (item.id === 'profile') {
-        onNavigate(5);
+      if (isAnimating.current) return;
+      if (item.id === 'admin') {
+        onAdminPress();
+        onClose();
+      } else if (item.id === 'profile') {
+        onNavigate(user?.role === 'admin' ? 6 : 5);
         onClose();
       } else if (item.id === 'progress') {
         onNavigate(3);
@@ -173,24 +278,36 @@ export default function FullScreenMenu({
   };
 
   return (
-    <Animated.View style={[
-      styles.overlay,
-      {
-        opacity: fadeAnim,
-        transform: [{ translateY: slideAnim }]
-      }
-    ]}>
+    <Animated.View 
+      pointerEvents={visible ? 'auto' : 'none'}
+      style={[
+        styles.overlay,
+        {
+          opacity: fadeAnim,
+          transform: [{ translateY: slideAnim }]
+        }
+      ]}
+    >
       <View style={styles.container}>
         
         {/* Top Header */}
         <View style={styles.topHeader}>
           <View style={styles.logoContainer}>
-            <MaterialIcons name="eco" size={28} color={theme.colors.accent.primary} />
+            <MaterialIcons name="eco" size={24} color={theme.colors.accent.primary} />
             <Text style={styles.logoText}>AirSaathi</Text>
           </View>
-          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-            <Text style={styles.closeButtonText}>CLOSE</Text>
-          </TouchableOpacity>
+          
+          <View style={styles.headerRightSection}>
+            <ModernThemeToggle 
+              isDarkMode={isDarkMode} 
+              onToggle={toggleTheme} 
+              theme={theme} 
+              styles={styles}
+            />
+            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+              <Text style={styles.closeButtonText}>CLOSE</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Scrollable Menu */}
@@ -199,7 +316,7 @@ export default function FullScreenMenu({
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
         >
-          {MENU_SECTIONS.map((section, sectionIndex) => (
+          {sections.map((section, sectionIndex) => (
             <View key={sectionIndex} style={styles.sectionCard}>
               {section.items.map((item, itemIndex) => (
                 <React.Fragment key={item.id}>
@@ -214,7 +331,9 @@ export default function FullScreenMenu({
       </View>
     </Animated.View>
   );
-}
+});
+
+export default FullScreenMenu;
 
 const getStyles = (theme, isDarkMode) => StyleSheet.create({
   overlay: {
@@ -244,15 +363,19 @@ const getStyles = (theme, isDarkMode) => StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
   },
+  headerRightSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   logoContainer: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   logoText: {
     fontFamily: theme.fonts.headline.bold,
-    fontSize: 22,
+    fontSize: 20,
     color: theme.colors.text.primary,
-    marginLeft: 8,
+    marginLeft: 6,
   },
   closeButton: {
     paddingVertical: 6,
@@ -266,6 +389,24 @@ const getStyles = (theme, isDarkMode) => StyleSheet.create({
     fontSize: 11,
     color: theme.colors.text.secondary,
     letterSpacing: 1.5,
+  },
+  toggleTrack: {
+    width: 52,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+  },
+  toggleThumb: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 2,
+    elevation: 2,
   },
   scrollArea: {
     flex: 1,

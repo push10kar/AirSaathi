@@ -6,5 +6,6 @@ const aqiController = require('../controllers/aqiController');
 router.get('/nearest', aqiController.getNearestStation);
 router.get('/current', aqiController.getAQIForLocation);
 router.get('/history/:stationId', aqiController.getStationHistory);
+router.get('/alerts', aqiController.getActiveAlerts);
 
 module.exports = router;

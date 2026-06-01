@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ScrollView, Image, ActivityIndicator, RefreshControl } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useAppTheme } from '../context/ThemeContext';
@@ -12,10 +12,10 @@ import ReportModal from '../components/Community/ReportModal';
 
 const FILTERS = ['All', 'Actions', 'Complaints', 'Achievements', 'Events', 'Tips', 'Discussions'];
 
-export default function CommunityScreen() {
+const CommunityScreen = React.memo(function CommunityScreen() {
   const { theme, isDarkMode } = useAppTheme();
   const { requireAuth } = useAuth();
-  const styles = getStyles(theme, isDarkMode);
+  const styles = useMemo(() => getStyles(theme, isDarkMode), [theme, isDarkMode]);
 
   const [posts, setPosts] = useState([]);
   const [groups, setGroups] = useState([]);
@@ -213,7 +213,9 @@ export default function CommunityScreen() {
       />
     </View>
   );
-}
+});
+
+export default CommunityScreen;
 
 const getStyles = (theme, isDarkMode) => StyleSheet.create({
   container: {
@@ -227,7 +229,7 @@ const getStyles = (theme, isDarkMode) => StyleSheet.create({
   },
   listContent: {
     padding: 16,
-    paddingBottom: 100, // Space for BottomNavBar
+    paddingBottom: 140, // Space for BottomNavBar
   },
   headerContainer: {
     marginBottom: 16,

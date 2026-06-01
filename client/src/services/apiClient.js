@@ -41,29 +41,45 @@ const apiRequest = async (url, options = {}, retry = true) => {
 
   const headers = {
     'Content-Type': 'application/json',
+    'ngrok-skip-browser-warning': 'true',
     ...(accessToken && { Authorization: `Bearer ${accessToken}` }),
     ...options.headers,
   };
 
-  const response = await fetch(`${API_URL}${url}`, { ...options, headers });
-  const data = await response.json();
-
-  // Auto-refresh on token expiry
-  if (response.status === 401 && data.code === 'TOKEN_EXPIRED' && retry) {
+  try {
+    const response = await fetch(`${API_URL}${url}`, { ...options, headers });
+    
+    // Read response text first to handle potential non-JSON responses
+    const responseText = await response.text();
+    
+    let data;
     try {
-      const newToken = await refreshAccessToken();
-      return apiRequest(url, {
-        ...options,
-        headers: { ...options.headers, Authorization: `Bearer ${newToken}` },
-      }, false); // retry=false prevents infinite loop
-    } catch (refreshError) {
-      // Refresh failed — force logout
-      if (_logoutCallback) _logoutCallback();
-      throw new Error('Session expired. Please log in again.');
+      data = JSON.parse(responseText);
+    } catch (e) {
+      console.error(`[API Client] Failed to parse JSON from ${url}. Response starts with: ${responseText.substring(0, 50)}`);
+      throw new Error(`Invalid server response (Not JSON). Response: ${responseText.substring(0, 100)}`);
     }
-  }
 
-  return { response, data };
+    // Auto-refresh on token expiry
+    if (response.status === 401 && data.code === 'TOKEN_EXPIRED' && retry) {
+      try {
+        const newToken = await refreshAccessToken();
+        return apiRequest(url, {
+          ...options,
+          headers: { ...options.headers, Authorization: `Bearer ${newToken}` },
+        }, false); // retry=false prevents infinite loop
+      } catch (refreshError) {
+        // Refresh failed — force logout
+        if (_logoutCallback) _logoutCallback();
+        throw new Error('Session expired. Please log in again.');
+      }
+    }
+
+    return { response, data };
+  } catch (error) {
+    console.error(`[API Client Error] ${url}:`, error.message);
+    throw error;
+  }
 };
 
 export default apiRequest;

@@ -25,22 +25,23 @@ const getDynamicGreeting = () => {
   return options[index];
 };
 
-export default function TopAppBar({ 
+const TopAppBar = React.memo(function TopAppBar({ 
   onMenuPress, 
   onProfilePress,
   onStreakPress,
+  onLocationPress,
+  user,
   streakCount = 7 
 }) {
   const { theme, isDarkMode } = useAppTheme();
   const { location } = useLocation();
-  const { user, requireAuth } = useAuth();
-  const [searchVisible, setSearchVisible] = useState(false);
+  const { requireAuth } = useAuth();
   
   const greetingBase = useMemo(() => getDynamicGreeting(), []);
   const firstName = user?.name ? user.name.split(' ')[0] : '';
   const fullGreeting = firstName ? `${greetingBase}, ${firstName}!` : `${greetingBase.toUpperCase()}!`;
   
-  const styles = getStyles(theme, isDarkMode);
+  const styles = useMemo(() => getStyles(theme, isDarkMode), [theme, isDarkMode]);
 
   return (
     <View style={styles.header}>
@@ -50,18 +51,14 @@ export default function TopAppBar({
         </TouchableOpacity>
         <View>
           <Text style={styles.greetingText}>{fullGreeting}</Text>
-          <TouchableOpacity style={styles.locationContainer} onPress={() => setSearchVisible(true)}>
+          <TouchableOpacity style={styles.locationContainer} onPress={onLocationPress}>
             <MaterialIcons name="location-on" size={14} color={theme.colors.text.secondary} />
-            <Text style={styles.locationText}>{location.city}, MH</Text>
+            <Text style={styles.locationText}>{location.city || 'Select Location'}</Text>
             <MaterialIcons name="keyboard-arrow-down" size={14} color={theme.colors.text.secondary} />
           </TouchableOpacity>
         </View>
       </View>
       
-      <LocationSearchModal 
-        visible={searchVisible} 
-        onClose={() => setSearchVisible(false)} 
-      />
       <View style={styles.headerRight}>
         {/* Streak Counter */}
         <TouchableOpacity 
@@ -83,21 +80,23 @@ export default function TopAppBar({
             }
           }}
         >
-          {user ? (
+          {user && user.avatar_url ? (
             <Image 
-              source={{ uri: user.avatar_url || 'https://i.pravatar.cc/150?u=' + user.id }} 
+              source={{ uri: user.avatar_url }} 
               style={styles.avatarImage} 
             />
           ) : (
             <View style={[styles.avatarPlaceholder, { backgroundColor: theme.colors.background.secondary }]}>
-              <Feather name="user" size={20} color={theme.colors.accent.primary} />
+              <Feather name="user" size={20} color={user ? theme.colors.text.muted : theme.colors.accent.primary} />
             </View>
           )}
         </TouchableOpacity>
       </View>
     </View>
   );
-}
+});
+
+export default TopAppBar;
 
 const getStyles = (theme, isDarkMode) => StyleSheet.create({
   header: {

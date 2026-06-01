@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   StyleSheet,
   Text,
@@ -15,10 +15,13 @@ import DailyActions from '../components/DailyActions';
 import InsightCard from '../components/InsightCard';
 import CommunityPreview from '../components/CommunityPreview';
 
-export default function DashboardScreen() {
+const DashboardScreen = React.memo(function DashboardScreen() {
   const { theme, isDarkMode } = useAppTheme();
-  const { location, aqiData, nearestStation, loading: locationLoading, detectLocation } = useLocation();
-  const styles = getStyles(theme);
+  const { 
+    location, aqiData, nearestStation, loading: locationLoading, 
+    detectLocation, refreshAqi 
+  } = useLocation();
+  const styles = useMemo(() => getStyles(theme), [theme]);
 
   const [refreshing, setRefreshing] = useState(false);
   
@@ -39,13 +42,22 @@ export default function DashboardScreen() {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await detectLocation();
+    // If we have a location, just refresh the data. Otherwise, try to detect.
+    if (location.coords) {
+      await refreshAqi();
+    } else {
+      await detectLocation();
+    }
     setRefreshing(false);
   };
 
   // Default values while loading
   const displayAqi = aqiData?.aqi || 0;
-  const displayStation = nearestStation ? `${nearestStation.name} (${nearestStation.distance} km)` : "Finding nearest station...";
+  const displayStation = locationLoading 
+    ? "Locating nearest station..." 
+    : nearestStation 
+      ? `${nearestStation.name} (${nearestStation.distance} km)` 
+      : "No monitoring stations found in this area";
 
   return (
     <View style={styles.container}>
@@ -60,23 +72,27 @@ export default function DashboardScreen() {
         
         {/* AQI Hero Section */}
         <AQIHero 
-          aqi={displayAqi} 
+          aqi={aqiData?.aqi} 
+          displayAqi={aqiData?.displayAqi}
           nearbyArea={displayStation} 
+          lastUpdated={aqiData?.updatedAt}
           theme={theme} 
         />
 
-        {/* Stats Metadata (Left & Right) */}
+        {/* Stats Metadata (Temperature & Humidity) */}
         <View style={styles.statsContainer}>
           <View style={styles.statBoxLeft}>
-            <Text style={styles.statLabel}>PM2.5</Text>
+            <Text style={styles.statLabel}>TEMPERATURE</Text>
             <View style={styles.statValueRow}>
-              <Text style={styles.statValuePrimary}>{aqiData?.pm25 || '--'} µg/m³</Text>
+              <Feather name="thermometer" size={20} color={theme.colors.accent.primary} style={{ marginRight: 8 }} />
+              <Text style={styles.statValuePrimary}>{aqiData?.temp || '--'}°C</Text>
             </View>
           </View>
           <View style={styles.statBoxRight}>
-            <Text style={styles.statLabelRight}>PM10</Text>
+            <Text style={styles.statLabelRight}>HUMIDITY</Text>
             <View style={styles.statValueRowRight}>
-              <Text style={styles.statValueNormal}>{aqiData?.pm10 || '--'} µg/m³</Text>
+              <Text style={styles.statValueNormal}>{aqiData?.humidity || '--'}%</Text>
+              <Feather name="droplet" size={20} color={theme.colors.support.teal} style={{ marginLeft: 8 }} />
             </View>
           </View>
         </View>
@@ -153,7 +169,9 @@ export default function DashboardScreen() {
       </ScrollView>
     </View>
   );
-}
+});
+
+export default DashboardScreen;
 
 const getStyles = (theme) => StyleSheet.create({
   container: {
@@ -163,7 +181,7 @@ const getStyles = (theme) => StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 24,
     paddingTop: 24,
-    paddingBottom: 100, // Make room for bottom nav
+    paddingBottom: 140, // Make room for bottom nav
   },
   centerpieceContainer: {
     alignItems: 'center',

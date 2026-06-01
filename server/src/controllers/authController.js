@@ -3,7 +3,7 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const { z } = require('zod');
 const { generateAccessToken, generateRefreshToken, hashToken, getRefreshTokenExpiry } = require('../services/tokenService');
-const { verifyGoogleIdToken } = require('../services/googleAuthService');
+
 
 // =============================================
 // Validation Schemas
@@ -151,67 +151,7 @@ const authController = {
     }
   },
 
-  /**
-   * POST /auth/google
-   * Google Sign-In (idToken from expo-auth-session)
-   */
-  googleAuth: async (req, res, next) => {
-    try {
-      const { idToken } = req.body;
-      if (!idToken) return res.status(400).json({ status: 'error', message: 'idToken is required' });
 
-      const googleUser = await verifyGoogleIdToken(idToken);
-
-      // Check if this Google account is already linked
-      const providerResult = await pool.query(
-        `SELECT u.id, u.name, u.email, u.role, u.city, u.avatar_url, u.is_verified
-         FROM auth_providers ap
-         JOIN users u ON u.id = ap.user_id
-         WHERE ap.provider = 'google' AND ap.provider_user_id = $1`,
-        [googleUser.googleId]
-      );
-
-      let user = providerResult.rows[0];
-
-      if (!user) {
-        // Check if email already exists (link accounts)
-        const emailResult = await pool.query(
-          `SELECT id, name, email, role, city, avatar_url, is_verified FROM users WHERE email = $1`,
-          [googleUser.email]
-        );
-
-        if (emailResult.rows[0]) {
-          user = emailResult.rows[0];
-          // Link Google provider to existing account
-          await pool.query(
-            `INSERT INTO auth_providers (user_id, provider, provider_user_id) VALUES ($1, 'google', $2) ON CONFLICT DO NOTHING`,
-            [user.id, googleUser.googleId]
-          );
-        } else {
-          // Brand new user — create account
-          const newUserResult = await pool.query(
-            `INSERT INTO users (name, email, avatar_url, is_verified, role)
-             VALUES ($1, $2, $3, TRUE, 'user') RETURNING id, name, email, role, city, avatar_url, is_verified`,
-            [googleUser.name, googleUser.email, googleUser.picture]
-          );
-          user = newUserResult.rows[0];
-          await pool.query(
-            `INSERT INTO auth_providers (user_id, provider, provider_user_id) VALUES ($1, 'google', $2)`,
-            [user.id, googleUser.googleId]
-          );
-        }
-      }
-
-      const accessToken = generateAccessToken(user.id);
-      const refreshToken = generateRefreshToken();
-      await createSession(user.id, req, refreshToken);
-      await logAuthEvent('google_login', user.id, req);
-
-      sendTokens(res, 200, user, accessToken, refreshToken);
-    } catch (err) {
-      next(err);
-    }
-  },
 
   /**
    * POST /auth/refresh
@@ -380,15 +320,18 @@ const authController = {
    */
   updateMe: async (req, res, next) => {
     try {
-      const { name, city, state } = req.body;
+      const { name, city, state, avatar_url } = req.body;
+      
+      // We use explicit check for avatar_url to allow setting it to null
       const result = await pool.query(
         `UPDATE users SET
            name = COALESCE($1, name),
            city = COALESCE($2, city),
-           state = COALESCE($3, state)
-         WHERE id = $4
+           state = COALESCE($3, state),
+           avatar_url = CASE WHEN $4 = 'REMOVE' THEN NULL WHEN $4 IS NOT NULL THEN $4 ELSE avatar_url END
+         WHERE id = $5
          RETURNING id, name, email, phone, role, avatar_url, city, state, is_verified`,
-        [name, city, state, req.user.id]
+        [name, city, state, avatar_url === null ? 'REMOVE' : avatar_url, req.user.id]
       );
       res.json({ status: 'success', data: { user: result.rows[0] } });
     } catch (err) {

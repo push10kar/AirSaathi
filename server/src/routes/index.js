@@ -13,6 +13,7 @@ router.use('/auth', authRoutes);
 router.use('/posts', postRoutes);
 router.use('/aqi', aqiRoutes);
 router.use('/reports', require('./reportRoutes'));
+router.use('/admin', require('./adminRoutes'));
 
 // User routes (keeping your existing structure but moving it here)
 router.get('/users', async (req, res, next) => {

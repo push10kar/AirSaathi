@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   StyleSheet,
   Text,
@@ -15,8 +15,9 @@ import RewardSystem from '../components/Action/RewardSystem';
 import PersonalInsights from '../components/Action/PersonalInsights';
 import DailyCheckIn from '../components/Action/DailyCheckIn';
 
-export default function ActionScreen() {
+const ActionScreen = React.memo(function ActionScreen() {
   const { theme, isDarkMode } = useAppTheme();
+  const styles = useMemo(() => getStyles(theme, isDarkMode), [theme, isDarkMode]);
   const [refreshing, setRefreshing] = useState(false);
   
   // State for gamification
@@ -113,16 +114,18 @@ export default function ActionScreen() {
       </ScrollView>
     </View>
   );
-}
+});
 
-const styles = StyleSheet.create({
+export default ActionScreen;
+
+const getStyles = (theme, isDarkMode) => StyleSheet.create({
   container: {
     flex: 1,
   },
   scrollContent: {
     paddingHorizontal: 24,
     paddingTop: 16,
-    paddingBottom: 100,
+    paddingBottom: 140,
   },
   smartCard: {
     padding: 20,

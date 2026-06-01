@@ -1,37 +1,62 @@
-import React from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Animated, Dimensions } from 'react-native';
+import React, { useRef, useEffect, useMemo } from 'react';
+import { StyleSheet, View, Text, TouchableOpacity, Animated, Dimensions, ScrollView } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useAppTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const TAB_WIDTH = SCREEN_WIDTH / 4;
-const TOTAL_TABS = 6;
-const NAVBAR_MAX_SCROLL = (TOTAL_TABS * TAB_WIDTH) - SCREEN_WIDTH;
 
-export const TABS = [
-  { id: 'Home', title: 'HOME', icon: 'home' },
-  { id: 'Learn', title: 'LEARN', icon: 'book-open' },
-  { id: 'Community', title: 'COMMUNITY', icon: 'users' },
-  { id: 'Action', title: 'ACTION', icon: 'zap' },
-  { id: 'Alerts', title: 'ALERTS', icon: 'bell' },
-  { id: 'Profile', title: 'PROFILE', icon: 'user' },
-];
-
-export default function BottomNavBar({ scrollX, onTabPress, activeIndex }) {
+const BottomNavBar = React.memo(function BottomNavBar({ scrollX, onTabPress, activeIndex }) {
   const { theme, isDarkMode } = useAppTheme();
-  const styles = getStyles(theme, isDarkMode);
+  const { user } = useAuth();
+  const styles = useMemo(() => getStyles(theme, isDarkMode), [theme, isDarkMode]);
 
-  // Interpolate the main screen scroll position to the navbar's translate X
-  const translateX = scrollX.interpolate({
-    inputRange: [0, SCREEN_WIDTH * (TOTAL_TABS - 1)],
-    outputRange: [0, -NAVBAR_MAX_SCROLL],
-    extrapolate: 'clamp',
-  });
+  const navScrollRef = useRef(null);
+
+  const tabs = useMemo(() => {
+    const baseTabs = [
+      { id: 'Home', title: 'HOME', icon: 'home' },
+      { id: 'Learn', title: 'LEARN', icon: 'book-open' },
+      { id: 'Community', title: 'COMMUNITY', icon: 'users' },
+      { id: 'Action', title: 'ACTION', icon: 'zap' },
+      { id: 'Alerts', title: 'ALERTS', icon: 'bell' },
+      { id: 'Profile', title: 'PROFILE', icon: 'user' },
+    ];
+    if (user?.role === 'admin') {
+      return [
+        ...baseTabs.slice(0, 5),
+        { id: 'Admin', title: 'ADMIN', icon: 'shield' },
+        ...baseTabs.slice(5)
+      ];
+    }
+    return baseTabs;
+  }, [user]);
+
+  const totalTabs = tabs.length;
+  const navbarMaxScroll = (totalTabs * TAB_WIDTH) - SCREEN_WIDTH;
+
+  // Auto-scroll the navbar to keep active tab visible
+  useEffect(() => {
+    if (navScrollRef.current) {
+      const scrollPos = activeIndex * TAB_WIDTH - (SCREEN_WIDTH / 2) + (TAB_WIDTH / 2);
+      navScrollRef.current.scrollTo({
+        x: Math.max(0, Math.min(scrollPos, navbarMaxScroll)),
+        animated: true,
+      });
+    }
+  }, [activeIndex, navbarMaxScroll]);
 
   return (
     <View style={styles.container}>
-      <Animated.View style={[styles.navTrack, { transform: [{ translateX }] }]}>
-        {TABS.map((tab, index) => {
+      <ScrollView 
+        ref={navScrollRef}
+        horizontal 
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.navTrack}
+        bounces={true}
+      >
+        {tabs.map((tab, index) => {
           const isActive = activeIndex === index;
           
             const colorInterpolation = scrollX.interpolate({
@@ -92,10 +117,12 @@ export default function BottomNavBar({ scrollX, onTabPress, activeIndex }) {
             </TouchableOpacity>
           );
         })}
-      </Animated.View>
+      </ScrollView>
     </View>
   );
-}
+});
+
+export default BottomNavBar;
 
 const getStyles = (theme, isDarkMode) => StyleSheet.create({
   container: {
@@ -123,7 +150,7 @@ const getStyles = (theme, isDarkMode) => StyleSheet.create({
   },
   navTrack: {
     flexDirection: 'row',
-    width: TAB_WIDTH * TOTAL_TABS,
+    paddingHorizontal: 8,
   },
   navItem: {
     width: TAB_WIDTH,

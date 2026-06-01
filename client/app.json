@@ -24,6 +24,11 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.iitmpune.airsaathi",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "FOREGROUND_SERVICE"
+      ],
       "intentFilters": [
         {
           "action": "VIEW",

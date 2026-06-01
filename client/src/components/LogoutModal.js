@@ -1,17 +1,69 @@
 import React from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, BlurView } from 'react-native';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, Animated, TouchableWithoutFeedback } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 
 export default function LogoutModal({ visible, onCancel, onConfirm, theme }) {
+  const backdropOpacity = React.useRef(new Animated.Value(0)).current;
+  const contentScale = React.useRef(new Animated.Value(0.9)).current;
+
+  React.useEffect(() => {
+    if (visible) {
+      Animated.parallel([
+        Animated.timing(backdropOpacity, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.spring(contentScale, {
+          toValue: 1,
+          tension: 50,
+          friction: 8,
+          useNativeDriver: true,
+        })
+      ]).start();
+    }
+  }, [visible]);
+
+  const handleCancel = () => {
+    Animated.parallel([
+      Animated.timing(backdropOpacity, {
+        toValue: 0,
+        duration: 250,
+        useNativeDriver: true,
+      }),
+      Animated.timing(contentScale, {
+        toValue: 0.9,
+        duration: 250,
+        useNativeDriver: true,
+      })
+    ]).start(() => {
+      onCancel();
+    });
+  };
+
+  if (!visible) return null;
   return (
     <Modal
       visible={visible}
       transparent={true}
-      animationType="fade"
-      onRequestClose={onCancel}
+      animationType="none"
+      statusBarTranslucent={true}
+      onRequestClose={handleCancel}
     >
       <View style={styles.overlay}>
-        <View style={[styles.modalContainer, { backgroundColor: theme.colors.background.primary }]}>
+        <Animated.View style={[styles.backdrop, { opacity: backdropOpacity }]}>
+          <TouchableWithoutFeedback onPress={handleCancel}>
+            <View style={{ flex: 1 }} />
+          </TouchableWithoutFeedback>
+        </Animated.View>
+
+        <Animated.View style={[
+          styles.modalContainer, 
+          { 
+            backgroundColor: theme.colors.background.primary,
+            transform: [{ scale: contentScale }]
+          }
+        ]}>
           <View style={[styles.iconCircle, { backgroundColor: theme.colors.support.error + '15' }]}>
             <Feather name="log-out" size={32} color={theme.colors.support.error} />
           </View>
@@ -24,7 +76,7 @@ export default function LogoutModal({ visible, onCancel, onConfirm, theme }) {
           <View style={styles.buttonRow}>
             <TouchableOpacity 
               style={[styles.button, styles.cancelButton, { backgroundColor: theme.colors.background.secondary }]} 
-              onPress={onCancel}
+              onPress={handleCancel}
             >
               <Text style={[styles.buttonText, { color: theme.colors.text.primary }]}>Cancel</Text>
             </TouchableOpacity>
@@ -36,7 +88,7 @@ export default function LogoutModal({ visible, onCancel, onConfirm, theme }) {
               <Text style={[styles.buttonText, { color: '#fff' }]}>Yes, Logout</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </Animated.View>
       </View>
     </Modal>
   );
@@ -45,10 +97,13 @@ export default function LogoutModal({ visible, onCancel, onConfirm, theme }) {
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 32,
+  },
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.6)',
   },
   modalContainer: {
     width: '100%',

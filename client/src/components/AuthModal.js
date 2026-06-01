@@ -25,7 +25,7 @@ export default function AuthModal() {
     requestOtp, 
     verifyOtp,
     updateProfile,
-    loginWithGoogle,
+
     onAuthSuccess 
   } = useAuth();
 
@@ -58,13 +58,31 @@ export default function AuthModal() {
   };
 
   const handleEmailAuth = async () => {
-    setLoading(true);
     setError('');
+    
+    // 1. Validation
+    if (view === 'EMAIL_SIGNUP' && name.trim().length < 2) {
+      setError('Please enter your full name (at least 2 characters)');
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      setError('Please enter a valid email address');
+      return;
+    }
+
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters');
+      return;
+    }
+
+    setLoading(true);
     let result;
     if (view === 'EMAIL_LOGIN') {
-      result = await login(email, password);
+      result = await login(email.trim(), password);
     } else {
-      result = await signup({ name, email, password });
+      result = await signup({ name: name.trim(), email: email.trim(), password });
     }
 
     if (result.success) {
@@ -76,8 +94,9 @@ export default function AuthModal() {
   };
 
   const handleRequestOtp = async () => {
-    if (phone.length < 10) {
-      setError('Please enter a valid phone number');
+    const phoneRegex = /^[6-9]\d{9}$/;
+    if (!phoneRegex.test(phone)) {
+      setError('Please enter a valid 10-digit Indian phone number');
       return;
     }
     setLoading(true);
@@ -113,8 +132,8 @@ export default function AuthModal() {
   };
 
   const handleCompleteProfile = async () => {
-    if (name.length < 2) {
-      setError('Please enter your name');
+    if (name.trim().length < 2) {
+      setError('Please enter your full name (at least 2 characters)');
       return;
     }
     setLoading(true);
@@ -136,23 +155,7 @@ export default function AuthModal() {
       <Text style={[styles.title, { color: theme.colors.text.primary }]}>Welcome to AirSaathi</Text>
       <Text style={[styles.subtitle, { color: theme.colors.text.secondary }]}>Join thousands of citizens taking action for cleaner air.</Text>
       
-      {/* Google Sign-In — Primary CTA */}
-      <TouchableOpacity 
-        style={[styles.googleBtn, { backgroundColor: isDarkMode ? '#fff' : '#fff', borderColor: '#ddd' }]} 
-        onPress={async () => {
-          const result = await loginWithGoogle();
-          if (result?.success === false) setError(result.message);
-        }}
-      >
-        <Text style={styles.googleIcon}>G</Text>
-        <Text style={[styles.googleBtnText]}>Continue with Google</Text>
-      </TouchableOpacity>
 
-      <View style={styles.dividerRow}>
-        <View style={[styles.dividerLine, { backgroundColor: theme.colors.background.elevated }]} />
-        <Text style={[styles.dividerText, { color: theme.colors.text.muted }]}>or</Text>
-        <View style={[styles.dividerLine, { backgroundColor: theme.colors.background.elevated }]} />
-      </View>
 
       <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: theme.colors.accent.primary }]} onPress={() => switchView('PHONE_INPUT')}>
         <Feather name="phone" size={20} color={isDarkMode ? '#000' : '#fff'} />
@@ -424,32 +427,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     textAlign: 'center',
   },
-  googleBtn: {
-    width: '100%',
-    height: 60,
-    borderRadius: 16,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
-    borderWidth: 1.5,
-    gap: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  googleIcon: {
-    fontSize: 20,
-    fontFamily: 'Inter_700Bold',
-    color: '#4285F4',
-  },
-  googleBtnText: {
-    fontSize: 16,
-    fontFamily: 'Inter_600SemiBold',
-    color: '#1a1a1a',
-  },
+
   dividerRow: {
     flexDirection: 'row',
     alignItems: 'center',

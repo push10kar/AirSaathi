@@ -3,56 +3,72 @@ import { View, Text, StyleSheet } from 'react-native';
 import CircularProgress from './CircularProgress';
 
 const getAQIInfo = (aqi) => {
+  if (!aqi || aqi === 0) {
+    return {
+      category: 'Pending',
+      message: 'Select a location to see live air quality data.',
+      color: '#999',
+    };
+  }
+
   if (aqi <= 50) {
     return {
       category: 'Good',
       message: 'Air is fresh — perfect for outdoor activities!',
-      color: '#00d166',
+      color: '#00C853',
     };
   } else if (aqi <= 100) {
     return {
-      category: 'Moderate',
+      category: 'Satisfactory',
       message: 'Air quality is acceptable today.',
-      color: '#FFB800',
-    };
-  } else if (aqi <= 150) {
-    return {
-      category: 'Poor',
-      message: 'Sensitive groups should reduce outdoor time.',
-      color: '#FF7A00',
+      color: '#FFD600',
     };
   } else if (aqi <= 200) {
     return {
-      category: 'Unhealthy',
-      message: 'Air is unhealthy today — limit outdoor exposure',
-      color: '#FF4B4B',
+      category: 'Moderate',
+      message: 'Sensitive groups should reduce outdoor time.',
+      color: '#FF6D00',
+    };
+  } else if (aqi <= 300) {
+    return {
+      category: 'Poor',
+      message: 'Air is unhealthy today — limit exposure.',
+      color: '#D50000',
+    };
+  } else if (aqi <= 400) {
+    return {
+      category: 'Very Poor',
+      message: 'Health alert: everyone may experience health effects.',
+      color: '#6A0080',
     };
   } else {
     return {
-      category: 'Hazardous',
-      message: 'Avoid outdoor activities — stay indoors!',
+      category: 'Severe',
+      message: 'Health warnings of emergency conditions!',
       color: '#93000a',
     };
   }
 };
 
-const AQIHero = ({ aqi, nearbyArea, theme }) => {
+const AQIHero = ({ aqi, displayAqi, nearbyArea, lastUpdated, theme }) => {
   const info = getAQIInfo(aqi);
-  const currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const currentTime = lastUpdated 
+    ? new Date(lastUpdated).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
   return (
     <View style={styles.container}>
       <View style={styles.nearbyContainer}>
         <Text style={[styles.nearbyText, { color: theme.colors.text.primary }]}>
-          {nearbyArea || 'Nearby Area'}
+          {nearbyArea || 'Location not set'}
         </Text>
         <Text style={[styles.timeText, { color: theme.colors.text.secondary }]}>
-          {currentTime}
+          {lastUpdated ? `Last updated: ${currentTime}` : `Current time: ${currentTime}`}
         </Text>
       </View>
 
       <View style={styles.ringContainer}>
-        <CircularProgress aqi={aqi} />
+        <CircularProgress aqi={displayAqi || 0} />
       </View>
 
       <View style={styles.infoContainer}>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   View, 
   Text, 
@@ -8,27 +8,88 @@ import {
   TextInput, 
   ScrollView, 
   Image,
-  ActivityIndicator
+  ActivityIndicator,
+  Animated,
+  Dimensions,
+  TouchableWithoutFeedback,
+  Keyboard
 } from 'react-native';
-import { Feather, MaterialIcons } from '@expo/vector-icons';
+import { Feather, MaterialIcons, Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 
-const AVATARS = [
-  'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix',
-  'https://api.dicebear.com/7.x/avataaars/svg?seed=Aneka',
-  'https://api.dicebear.com/7.x/avataaars/svg?seed=Midnight',
-  'https://api.dicebear.com/7.x/avataaars/svg?seed=Mason',
-  'https://api.dicebear.com/7.x/avataaars/svg?seed=Zoe',
-  'https://api.dicebear.com/7.x/avataaars/svg?seed=Caleb',
-  'https://api.dicebear.com/7.x/avataaars/svg?seed=Luna',
-  'https://api.dicebear.com/7.x/avataaars/svg?seed=Leo',
-];
+
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export default function EditProfileModal({ visible, onClose, user, onUpdate, theme, isDarkMode }) {
   const [name, setName] = useState(user?.name || '');
   const [city, setCity] = useState(user?.city || '');
-  const [selectedAvatar, setSelectedAvatar] = useState(user?.avatar_url || AVATARS[0]);
+  const [selectedAvatar, setSelectedAvatar] = useState(user?.avatar_url || null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const backdropOpacity = useRef(new Animated.Value(0)).current;
+  const sheetTranslateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+
+  useEffect(() => {
+    if (visible) {
+      Animated.parallel([
+        Animated.timing(backdropOpacity, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.spring(sheetTranslateY, {
+          toValue: 0,
+          tension: 45,
+          friction: 12,
+          useNativeDriver: true,
+        })
+      ]).start();
+    }
+  }, [visible]);
+
+  useEffect(() => {
+    setName(user?.name || '');
+    setCity(user?.city || '');
+    setSelectedAvatar(user?.avatar_url || null);
+  }, [user]);
+
+  const handleClose = () => {
+    Keyboard.dismiss();
+    Animated.parallel([
+      Animated.timing(backdropOpacity, {
+        toValue: 0,
+        duration: 250,
+        useNativeDriver: true,
+      }),
+      Animated.timing(sheetTranslateY, {
+        toValue: SCREEN_HEIGHT,
+        duration: 300,
+        useNativeDriver: true,
+      })
+    ]).start(() => {
+      onClose();
+    });
+  };
+
+  const handleImagePick = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      alert('Sorry, we need camera roll permissions to make this work!');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+    });
+
+    if (!result.canceled) {
+      setSelectedAvatar(result.assets[0].uri);
+    }
+  };
 
   const handleSave = async () => {
     if (!name.trim()) {
@@ -38,7 +99,7 @@ export default function EditProfileModal({ visible, onClose, user, onUpdate, the
     setLoading(true);
     const result = await onUpdate({ name, city, avatar_url: selectedAvatar });
     if (result.success) {
-      onClose();
+      handleClose();
     } else {
       setError(result.message);
     }
@@ -49,39 +110,64 @@ export default function EditProfileModal({ visible, onClose, user, onUpdate, the
     <Modal
       visible={visible}
       transparent={true}
-      animationType="slide"
-      onRequestClose={onClose}
+      animationType="none"
+      statusBarTranslucent={true}
+      onRequestClose={handleClose}
     >
       <View style={styles.overlay}>
-        <View style={[styles.modalContainer, { backgroundColor: theme.colors.background.primary }]}>
+        <Animated.View style={[styles.backdrop, { opacity: backdropOpacity }]}>
+          <TouchableWithoutFeedback onPress={handleClose}>
+            <View style={{ flex: 1 }} />
+          </TouchableWithoutFeedback>
+        </Animated.View>
+
+        <Animated.View style={[
+          styles.modalContainer, 
+          { 
+            backgroundColor: theme.colors.background.primary,
+            transform: [{ translateY: sheetTranslateY }]
+          }
+        ]}>
           <View style={styles.header}>
             <Text style={[styles.title, { color: theme.colors.text.primary }]}>Edit Profile</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+            <TouchableOpacity onPress={handleClose} style={styles.closeBtn}>
               <MaterialIcons name="close" size={24} color={theme.colors.text.secondary} />
             </TouchableOpacity>
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-            <Text style={[styles.label, { color: theme.colors.text.muted }]}>SELECT AVATAR</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.avatarList}>
-              {AVATARS.map((avatar, index) => (
+            <Text style={[styles.label, { color: theme.colors.text.muted }]}>PROFILE PICTURE</Text>
+            <View style={styles.avatarOptionsRow}>
+              <View style={styles.currentAvatarContainer}>
+                {selectedAvatar ? (
+                  <Image source={{ uri: selectedAvatar }} style={styles.avatarPreview} />
+                ) : (
+                  <View style={[styles.avatarPreview, styles.avatarPlaceholder]}>
+                    <Feather name="user" size={32} color={theme.colors.text.muted} />
+                  </View>
+                )}
+              </View>
+              
+              <View style={styles.avatarActionBtns}>
                 <TouchableOpacity 
-                  key={index} 
-                  onPress={() => setSelectedAvatar(avatar)}
-                  style={[
-                    styles.avatarWrapper, 
-                    selectedAvatar === avatar && { borderColor: theme.colors.accent.primary, borderWidth: 3 }
-                  ]}
+                  style={[styles.avatarActionBtn, { backgroundColor: theme.colors.background.secondary }]} 
+                  onPress={handleImagePick}
                 >
-                  <Image source={{ uri: avatar }} style={styles.avatarImage} />
-                  {selectedAvatar === avatar && (
-                    <View style={[styles.checkBadge, { backgroundColor: theme.colors.accent.primary }]}>
-                      <Feather name="check" size={12} color="#000" />
-                    </View>
-                  )}
+                  <Feather name="image" size={18} color={theme.colors.accent.primary} />
+                  <Text style={[styles.avatarActionText, { color: theme.colors.text.primary }]}>Change Profile</Text>
                 </TouchableOpacity>
-              ))}
-            </ScrollView>
+                
+                {(selectedAvatar || user?.avatar_url) && (
+                  <TouchableOpacity 
+                    style={[styles.avatarActionBtn, { backgroundColor: 'rgba(255, 75, 75, 0.12)' }]} 
+                    onPress={() => setSelectedAvatar(null)}
+                  >
+                    <Feather name="trash-2" size={18} color="#FF3B30" />
+                    <Text style={[styles.avatarActionText, { color: "#FF3B30" }]}>Remove Profile</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
 
             <Text style={[styles.label, { color: theme.colors.text.muted }]}>NAME</Text>
             <View style={[styles.inputContainer, { backgroundColor: theme.colors.background.secondary, borderColor: theme.colors.background.elevated }]}>
@@ -121,7 +207,7 @@ export default function EditProfileModal({ visible, onClose, user, onUpdate, the
               )}
             </TouchableOpacity>
           </ScrollView>
-        </View>
+        </Animated.View>
       </View>
     </Modal>
   );
@@ -130,8 +216,11 @@ export default function EditProfileModal({ visible, onClose, user, onUpdate, the
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
     justifyContent: 'flex-end',
+  },
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.6)',
   },
   modalContainer: {
     borderTopLeftRadius: 32,
@@ -162,34 +251,43 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     marginTop: 8,
   },
-  avatarList: {
+  avatarOptionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: 32,
+    gap: 20,
   },
-  avatarWrapper: {
+  currentAvatarContainer: {
+    position: 'relative',
+  },
+  avatarPreview: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    marginRight: 16,
-    overflow: 'visible',
-    position: 'relative',
     backgroundColor: 'rgba(255,255,255,0.05)',
   },
-  avatarImage: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 40,
-  },
-  checkBadge: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+  avatarPlaceholder: {
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#fff',
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  avatarActionBtns: {
+    flex: 1,
+    gap: 10,
+  },
+  avatarActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    gap: 10,
+  },
+  avatarActionText: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 14,
   },
   inputContainer: {
     flexDirection: 'row',

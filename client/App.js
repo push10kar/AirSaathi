@@ -1,10 +1,11 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { View, StyleSheet, Animated, Dimensions, Text, ScrollView } from 'react-native';
 import { useFonts } from 'expo-font';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from './src/theme';
 import { ThemeProvider, useAppTheme } from './src/context/ThemeContext';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
+import ThemeTransitionOverlay from './src/components/ThemeTransitionOverlay';
 import { LocationProvider } from './src/context/LocationContext';
 import AuthModal from './src/components/AuthModal';
 
@@ -13,7 +14,9 @@ import ActionScreen from './src/screens/ActionScreen';
 import CommunityScreen from './src/screens/CommunityScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import LearnScreen from './src/screens/LearnScreen';
-import BottomNavBar, { TABS } from './src/components/BottomNavBar';
+import AlertScreen from './src/screens/AlertScreen';
+import AdminDashboardScreen from './src/screens/AdminDashboardScreen';
+import BottomNavBar from './src/components/BottomNavBar';
 import FullScreenMenu from './src/components/FullScreenMenu';
 import TopAppBar from './src/components/TopAppBar';
 import LogoutModal from './src/components/LogoutModal';
@@ -55,42 +58,66 @@ function AppContent() {
   const [logoutVisible, setLogoutVisible] = useState(false);
   const [reportVisible, setReportVisible] = useState(false);
   const [locationVisible, setLocationVisible] = useState(false);
+  const [adminDashboardVisible, setAdminDashboardVisible] = useState(false);
   const { user, logout, token } = useAuth();
+  const { isTransitioning, targetDarkMode } = useAppTheme();
   const scrollX = useRef(new Animated.Value(0)).current;
   const scrollViewRef = useRef(null);
+
+  const handleMenuPress = useCallback(() => {
+    if (!menuVisible) setMenuVisible(true);
+  }, [menuVisible]);
+  const handleTabPress = useCallback((index) => {
+    scrollViewRef.current?.scrollTo({ x: index * SCREEN_WIDTH, animated: true });
+    setActiveIndex(index);
+  }, []);
+
+  const handleLogout = useCallback(() => {
+    setLogoutVisible(false);
+    logout();
+  }, [logout]);
+
+  const handleScroll = useMemo(() => Animated.event(
+    [{ nativeEvent: { contentOffset: { x: scrollX } } }],
+    { useNativeDriver: false }
+  ), [scrollX]);
+
+  const handleMomentumScrollEnd = useCallback((event) => {
+    const index = Math.round(event.nativeEvent.contentOffset.x / SCREEN_WIDTH);
+    setActiveIndex(index);
+  }, []);
+
+  const screens = useMemo(() => {
+    const baseScreens = [
+      <DashboardScreen key="dashboard" />,
+      <LearnScreen key="learn" onNavigateToAction={() => handleTabPress(3)} />,
+      <CommunityScreen key="community" />,
+      <ActionScreen key="action" />,
+      <AlertScreen key="alerts" />,
+      <ProfileScreen key="profile" onLogoutRequest={() => setLogoutVisible(true)} />
+    ];
+    if (user?.role === 'admin') {
+      return [
+        ...baseScreens.slice(0, 5),
+        <AdminDashboardScreen key="admin" isEmbedded={true} />,
+        ...baseScreens.slice(5)
+      ];
+    }
+    return baseScreens;
+  }, [handleTabPress, user]);
 
   if (!fontsLoaded) {
     return <View style={[styles.loadingContainer, { backgroundColor: theme.colors.background.primary }]} />;
   }
 
-  const handleMenuPress = () => setMenuVisible(true);
-
-  const handleTabPress = (index) => {
-    scrollViewRef.current?.scrollTo({ x: index * SCREEN_WIDTH, animated: true });
-    setActiveIndex(index);
-  };
-
-  const handleLogout = () => {
-    setLogoutVisible(false);
-    logout();
-  };
-
-  const handleScroll = Animated.event(
-    [{ nativeEvent: { contentOffset: { x: scrollX } } }],
-    { useNativeDriver: false }
-  );
-
-  const handleMomentumScrollEnd = (event) => {
-    const index = Math.round(event.nativeEvent.contentOffset.x / SCREEN_WIDTH);
-    setActiveIndex(index);
-  };
-
   return (
     <SafeAreaView style={styles.safeArea}>
       <TopAppBar 
         onMenuPress={handleMenuPress} 
-        onProfilePress={() => handleTabPress(5)}
+        onProfilePress={() => handleTabPress(user?.role === 'admin' ? 6 : 5)}
         onStreakPress={() => handleTabPress(3)}
+        onLocationPress={() => setLocationVisible(true)}
+        user={user}
       />
 
       <Animated.ScrollView
@@ -98,29 +125,17 @@ function AppContent() {
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
+        scrollEnabled={false}
         onScroll={handleScroll}
         scrollEventThrottle={16}
         onMomentumScrollEnd={handleMomentumScrollEnd}
         style={styles.pagerContainer}
       >
-        <View style={{ width: SCREEN_WIDTH, flex: 1 }}>
-          <DashboardScreen />
-        </View>
-        <View style={{ width: SCREEN_WIDTH, flex: 1 }}>
-          <LearnScreen onNavigateToAction={() => handleTabPress(3)} />
-        </View>
-        <View style={{ width: SCREEN_WIDTH, flex: 1 }}>
-          <CommunityScreen />
-        </View>
-        <View style={{ width: SCREEN_WIDTH, flex: 1 }}>
-          <ActionScreen />
-        </View>
-        <View style={{ width: SCREEN_WIDTH, flex: 1 }}>
-          <PlaceholderScreen title="Alerts" />
-        </View>
-        <View style={{ width: SCREEN_WIDTH, flex: 1 }}>
-          <ProfileScreen onLogoutRequest={() => setLogoutVisible(true)} />
-        </View>
+        {screens.map((screen, index) => (
+          <View key={index} style={styles.screenWrapper}>
+            {screen}
+          </View>
+        ))}
       </Animated.ScrollView>
 
       <BottomNavBar 
@@ -136,6 +151,18 @@ function AppContent() {
         onLogout={() => setLogoutVisible(true)}
         onReport={() => setReportVisible(true)}
         onLocation={() => setLocationVisible(true)}
+        onAdminPress={() => {
+          if (user?.role === 'admin') {
+            handleTabPress(5);
+          } else {
+            setAdminDashboardVisible(true);
+          }
+        }}
+      />
+
+      <ThemeTransitionOverlay 
+        visible={isTransitioning} 
+        targetDarkMode={targetDarkMode} 
       />
 
       <LogoutModal
@@ -154,6 +181,11 @@ function AppContent() {
       <LocationControlModal
         visible={locationVisible}
         onClose={() => setLocationVisible(false)}
+      />
+
+      <AdminDashboardScreen
+        visible={adminDashboardVisible}
+        onClose={() => setAdminDashboardVisible(false)}
       />
     </SafeAreaView>
   );
@@ -183,6 +215,10 @@ const getStyles = (theme) => StyleSheet.create({
     backgroundColor: theme.colors.background.primary,
   },
   pagerContainer: {
+    flex: 1,
+  },
+  screenWrapper: {
+    width: SCREEN_WIDTH,
     flex: 1,
   },
   placeholderContainer: {

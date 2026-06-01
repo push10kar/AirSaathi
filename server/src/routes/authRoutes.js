@@ -6,7 +6,7 @@ const { protect, optionalAuth } = require('../middleware/auth');
 // Public routes
 router.post('/signup', authController.signup);
 router.post('/login', authController.login);
-router.post('/google', authController.googleAuth);
+
 router.post('/refresh', authController.refresh);
 router.post('/request-otp', authController.requestOtp);
 router.post('/verify-otp', authController.verifyOtp);

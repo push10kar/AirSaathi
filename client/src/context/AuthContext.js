@@ -1,21 +1,14 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as WebBrowser from 'expo-web-browser';
-import * as AuthSession from 'expo-auth-session';
-import * as Crypto from 'expo-crypto';
+
 import { API_URL } from '../config';
 import apiRequest, { registerLogoutCallback } from '../services/apiClient';
 
-WebBrowser.maybeCompleteAuthSession();
+
 
 const AuthContext = createContext(null);
 
-const GOOGLE_CLIENT_ID = '277638910041-q4q3v6mmvo71fps5utdh18n323c63jbe.apps.googleusercontent.com';
 
-const discovery = {
-  authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
-  tokenEndpoint: 'https://oauth2.googleapis.com/token',
-};
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -24,30 +17,9 @@ export const AuthProvider = ({ children }) => {
   const [isAuthModalVisible, setIsAuthModalVisible] = useState(false);
   const [pendingAction, setPendingAction] = useState(null);
 
-  // ─── Google OAuth Setup ────────────────────────────────────────
-  const redirectUri = AuthSession.makeRedirectUri({ useProxy: true });
 
-  const [request, response, promptAsync] = AuthSession.useAuthRequest(
-    {
-      clientId: GOOGLE_CLIENT_ID,
-      scopes: ['openid', 'profile', 'email'],
-      redirectUri,
-      responseType: 'id_token',
-      usePKCE: false,
-      extraParams: { nonce: Crypto.randomUUID() },
-    },
-    discovery
-  );
 
-  // Handle Google OAuth response
-  useEffect(() => {
-    if (response?.type === 'success') {
-      const { id_token } = response.params;
-      if (id_token) {
-        handleGoogleToken(id_token);
-      }
-    }
-  }, [response]);
+
 
   // Register logout callback for apiClient auto-logout on refresh failure
   useEffect(() => {
@@ -82,6 +54,20 @@ export const AuthProvider = ({ children }) => {
     await AsyncStorage.setItem('user_data', JSON.stringify(userData));
   };
 
+  // Helper for error formatting
+  const formatErrorMessage = (message) => {
+    if (!message) return '';
+    try {
+      const parsed = typeof message === 'string' ? JSON.parse(message) : message;
+      if (Array.isArray(parsed) && parsed[0]?.message) {
+        return parsed[0].message;
+      }
+    } catch (e) {
+      // Not a JSON string or doesn't match expected structure, return as is
+    }
+    return message;
+  };
+
   // ─── Email / Password Auth ─────────────────────────────────────
   const login = async (email, password) => {
     try {
@@ -93,7 +79,7 @@ export const AuthProvider = ({ children }) => {
         await saveAuthData(data.accessToken, data.refreshToken, data.data.user);
         return { success: true };
       }
-      return { success: false, message: data.message };
+      return { success: false, message: formatErrorMessage(data.message) };
     } catch (e) {
       return { success: false, message: 'Connection error' };
     }
@@ -109,37 +95,13 @@ export const AuthProvider = ({ children }) => {
         await saveAuthData(data.accessToken, data.refreshToken, data.data.user);
         return { success: true };
       }
-      return { success: false, message: data.message };
+      return { success: false, message: formatErrorMessage(data.message) };
     } catch (e) {
       return { success: false, message: 'Connection error' };
     }
   };
 
-  // ─── Google Sign-In ────────────────────────────────────────────
-  const loginWithGoogle = async () => {
-    try {
-      await promptAsync();
-      // Result handled by the useEffect above
-      return { success: true };
-    } catch (e) {
-      return { success: false, message: 'Google Sign-In failed' };
-    }
-  };
 
-  const handleGoogleToken = async (idToken) => {
-    try {
-      const { data } = await apiRequest('/auth/google', {
-        method: 'POST',
-        body: JSON.stringify({ idToken }),
-      });
-      if (data.status === 'success') {
-        await saveAuthData(data.accessToken, data.refreshToken, data.data.user);
-        onAuthSuccess();
-      }
-    } catch (e) {
-      console.error('Google auth failed:', e.message);
-    }
-  };
 
   // ─── OTP Auth ──────────────────────────────────────────────────
   const requestOtp = async (phone) => {
@@ -148,7 +110,7 @@ export const AuthProvider = ({ children }) => {
         method: 'POST',
         body: JSON.stringify({ phone }),
       });
-      return { success: data.status === 'success', message: data.message, code: data.code };
+      return { success: data.status === 'success', message: formatErrorMessage(data.message), code: data.code };
     } catch (e) {
       return { success: false, message: 'Connection error' };
     }
@@ -164,7 +126,7 @@ export const AuthProvider = ({ children }) => {
         await saveAuthData(data.accessToken, data.refreshToken, data.data.user);
         return { success: true, isNewUser: data.isNewUser };
       }
-      return { success: false, message: data.message };
+      return { success: false, message: formatErrorMessage(data.message) };
     } catch (e) {
       return { success: false, message: 'Connection error' };
     }
@@ -182,7 +144,7 @@ export const AuthProvider = ({ children }) => {
         await AsyncStorage.setItem('user_data', JSON.stringify(data.data.user));
         return { success: true };
       }
-      return { success: false, message: data.message };
+      return { success: false, message: formatErrorMessage(data.message) };
     } catch (e) {
       return { success: false, message: 'Connection error' };
     }
@@ -230,25 +192,25 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+
+  const value = useMemo(() => ({
+    user,
+    token,       // = access token (kept for backward compat)
+    isLoading,
+    login,
+    signup,
+    requestOtp,
+    verifyOtp,
+    updateProfile,
+    logout,
+    requireAuth,
+    isAuthModalVisible,
+    closeAuthModal,
+    onAuthSuccess,
+  }), [user, token, isLoading, isAuthModalVisible, pendingAction]);
+
   return (
-    <AuthContext.Provider value={{
-      user,
-      token,       // = access token (kept for backward compat)
-      isLoading,
-      login,
-      signup,
-      loginWithGoogle,
-      requestOtp,
-      verifyOtp,
-      updateProfile,
-      logout,
-      requireAuth,
-      isAuthModalVisible,
-      closeAuthModal,
-      onAuthSuccess,
-      // Expose for Google button disabled state
-      googleAuthRequest: request,
-    }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

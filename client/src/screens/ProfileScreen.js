@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { 
   View, 
   Text, 
@@ -12,18 +12,68 @@ import {
 import { MaterialIcons, Feather, Ionicons, FontAwesome5 } from '@expo/vector-icons';
 import { useAppTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
+import * as ImagePicker from 'expo-image-picker';
 import LogoutModal from '../components/LogoutModal';
 import EditProfileModal from '../components/EditProfileModal';
+import AvatarActionModal from '../components/AvatarActionModal';
 
 const { width } = Dimensions.get('window');
 
-export default function ProfileScreen({ onLogoutRequest }) {
+const ProfileScreen = React.memo(function ProfileScreen({ onLogoutRequest }) {
   const { theme, isDarkMode } = useAppTheme();
   const { user, logout, updateProfile, requireAuth } = useAuth();
   
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [isAvatarMenuVisible, setIsAvatarMenuVisible] = useState(false);
 
-  const styles = getStyles(theme, isDarkMode);
+  const handleImagePick = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      alert('Sorry, we need camera roll permissions to make this work!');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+    });
+
+    if (!result.canceled) {
+      const selectedImage = result.assets[0].uri;
+      setIsUploading(true);
+      setIsAvatarMenuVisible(false);
+      try {
+        const success = await updateProfile({ avatar_url: selectedImage });
+        if (!success) {
+          alert('Failed to update avatar. Please try again.');
+        }
+      } catch (error) {
+        console.error('Avatar update error:', error);
+      } finally {
+        setIsUploading(false);
+      }
+    }
+  };
+
+  const handleRemoveAvatar = async () => {
+    setIsUploading(true);
+    setIsAvatarMenuVisible(false);
+    try {
+      const success = await updateProfile({ avatar_url: null });
+      if (!success) {
+        alert('Failed to remove avatar.');
+      }
+    } catch (error) {
+      console.error('Avatar remove error:', error);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const styles = useMemo(() => getStyles(theme, isDarkMode), [theme, isDarkMode]);
 
   // Mock data for the "Impact" and "Stats" sections
   const mockStats = {
@@ -69,11 +119,27 @@ export default function ProfileScreen({ onLogoutRequest }) {
         {/* 1. IDENTITY BLOCK */}
         <View style={styles.identitySection}>
           <View style={styles.avatarContainer}>
-            <Image 
-              source={{ uri: user.avatar_url || 'https://i.pravatar.cc/150?u=' + user.id }} 
-              style={styles.avatar} 
-            />
-            <TouchableOpacity style={[styles.editBadge, { backgroundColor: theme.colors.accent.primary }]} onPress={() => setIsEditModalVisible(true)}>
+            <TouchableOpacity onPress={() => setIsAvatarMenuVisible(true)} activeOpacity={0.8}>
+              {user.avatar_url ? (
+                <Image 
+                  source={{ uri: user.avatar_url }} 
+                  style={styles.avatar} 
+                />
+              ) : (
+                <View style={[styles.avatar, styles.placeholderAvatar]}>
+                  <Feather name="user" size={40} color={theme.colors.text.muted} />
+                </View>
+              )}
+              {isUploading && (
+                <View style={styles.loadingOverlay}>
+                  <Text style={styles.loadingText}>...</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.editBadge, { backgroundColor: theme.colors.accent.primary }]} 
+              onPress={() => setIsEditModalVisible(true)}
+            >
               <Feather name="edit-2" size={14} color="#000" />
             </TouchableOpacity>
           </View>
@@ -271,9 +337,24 @@ export default function ProfileScreen({ onLogoutRequest }) {
         theme={theme}
         isDarkMode={isDarkMode}
       />
+
+      {/* Avatar Action Menu */}
+      <AvatarActionModal 
+        visible={isAvatarMenuVisible}
+        onClose={() => setIsAvatarMenuVisible(false)}
+        onChange={handleImagePick}
+        onRemove={handleRemoveAvatar}
+        hasAvatar={!!user.avatar_url}
+        theme={theme}
+      />
+      
+      {/* Since the user asked for TWO options, I should actually use a more custom menu than LogoutModal */}
+      {/* But I'll use a simple Modal for now that matches the app style */}
     </View>
   );
-}
+});
+
+export default ProfileScreen;
 
 const getStyles = (theme, isDarkMode) => StyleSheet.create({
   container: {
@@ -283,6 +364,7 @@ const getStyles = (theme, isDarkMode) => StyleSheet.create({
   scrollContent: {
     padding: 20,
     paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    paddingBottom: 140,
   },
   identitySection: {
     alignItems: 'center',
@@ -298,6 +380,37 @@ const getStyles = (theme, isDarkMode) => StyleSheet.create({
     borderRadius: 50,
     borderWidth: 4,
     borderColor: theme.colors.background.secondary,
+  },
+  placeholderAvatar: {
+    backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderStyle: 'dashed',
+    borderColor: theme.colors.text.muted,
+  },
+  addIconContainer: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: theme.colors.accent.primary,
+    borderRadius: 10,
+    width: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: theme.colors.background.primary,
+  },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    borderRadius: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    color: '#FFF',
+    fontFamily: 'SpaceGrotesk_700Bold',
   },
   editBadge: {
     position: 'absolute',
